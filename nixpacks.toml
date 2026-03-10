@@ -1,0 +1,7 @@
+[variables]
+    NIXPACKS_PHP_VERSION = '8.4'
+    NIXPACKS_PHP_EXTENSIONS = 'gd, pdo_mysql, zip, opcache, bcmath'
+
+[phases.install]
+    dependsOn = ['setup']
+    cmds = ['composer install --optimize-autoloader --no-scripts --no-interaction --ignore-platform-req=ext-gd']
