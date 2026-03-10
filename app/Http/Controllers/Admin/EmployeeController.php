@@ -33,10 +33,16 @@ class EmployeeController extends Controller
             });
         }
 
+        if ($request->has('division_id') && $request->division_id != '') {
+            $query->where('division_id', $request->division_id);
+        }
+
         $employees = $query->paginate(10)->withQueryString();
         $adminOffice = Office::find($adminOfficeId);
 
-        return view('admin.employees.index', compact('employees', 'adminOffice'));
+        $divisions = Division::where('office_id', $adminOfficeId)->get();
+
+        return view('admin.employees.index', compact('employees', 'adminOffice', 'divisions'));
     }
 
     public function create()

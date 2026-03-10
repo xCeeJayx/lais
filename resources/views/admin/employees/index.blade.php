@@ -14,16 +14,30 @@
     </div>
 
     {{-- Filters --}}
+    {{-- Filters --}}
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('admin.employees.index') }}" class="row g-2">
-                {{-- Search bar now takes up more space since there is no Office Dropdown --}}
-                <div class="col-md-9">
+                {{-- Search bar column adjusted --}}
+                <div class="col-md-5">
                     <input type="text" name="search" class="form-control" placeholder="Search by name or email..." value="{{ request('search') }}">
                 </div>
+
+                {{-- Division Filter --}}
+                <div class="col-md-4">
+                    <select name="division_id" class="form-select">
+                        <option value="">All Divisions</option>
+                        @foreach($divisions as $division)
+                            <option value="{{ $division->id }}" {{ request('division_id') == $division->id ? 'selected' : '' }}>
+                                {{ $division->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-secondary w-100">
-                        <i class="bi bi-search"></i> Search
+                        <i class="bi bi-search"></i> Search / Filter
                     </button>
                 </div>
             </form>
