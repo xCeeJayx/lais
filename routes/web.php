@@ -72,7 +72,7 @@ Route::middleware(['auth'])->group(function () {
 
         if ($user->hasRole('employee')) return redirect()->route('employee.dashboard');
 
-        return redirect('/');
+        abort(403, 'Your account does not have a valid role assigned. Please contact the administrator.');
     })->name('dashboard');
 
     // Attachments
