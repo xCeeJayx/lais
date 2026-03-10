@@ -4,4 +4,4 @@
 
 [phases.install]
     dependsOn = ['setup']
-    cmds = ['composer install --optimize-autoloader --no-scripts --no-interaction --ignore-platform-req=ext-gd']
+    cmds = ['chmod -R 775 storage bootstrap/cache']
