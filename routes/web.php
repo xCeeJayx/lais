@@ -45,6 +45,9 @@ require __DIR__ . '/auth.php';
 */
 Route::middleware(['auth'])->group(function () {
 
+    Route::get('/setup-account', [\App\Http\Controllers\Auth\ForcePasswordChangeController::class, 'edit'])->name('force-password.edit');
+    Route::post('/setup-account', [\App\Http\Controllers\Auth\ForcePasswordChangeController::class, 'update'])->name('force-password.update');
+
     /*
     |--------------------------------------------------------------------------
     | TRAFFIC COP: Single Landing Dashboard

@@ -3,7 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use App\Http\Middleware\CheckAccountStatus; // <--- Keep this import
+use App\Http\Middleware\CheckAccountStatus;
+use App\Http\Middleware\ForcePasswordChange;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // FIX: Use 'appendToGroup' instead of 'append'
         // This ensures it runs AFTER the session starts and the user is identified.
         $middleware->appendToGroup('web', CheckAccountStatus::class);
+        $middleware->appendToGroup('web', ForcePasswordChange::class);
 
         // Alias for roles (keep this if you use it in routes)
         $middleware->alias([
