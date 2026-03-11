@@ -116,9 +116,7 @@ class LeaveActionController extends Controller
             return back()->withErrors(['remarks' => 'Remarks are required when returning or disapproving.']);
         }
 
-        $statusChanged = false;
-
-        DB::transaction(function () use ($request, $leave, $user, $action, $remarks, &$statusChanged) {
+        DB::transaction(function () use ($request, $leave, $user, $action, $remarks) {
 
             // NEW: If Chief Personnel, save the Leave Credits Certification Details
             if ($user->hasRole('approver_chief_personnel')) {
@@ -136,10 +134,10 @@ class LeaveActionController extends Controller
                     }
                 }
 
-                $leave->details_json = $details;;
+                $leave->details_json = $details;
             }
 
-            // 1. Log the Approval
+            // 1. Log the Approval Action
             LeaveApproval::create([
                 'leave_application_id' => $leave->id,
                 'step_order' => $leave->current_step_order,
@@ -149,9 +147,7 @@ class LeaveActionController extends Controller
                 'acted_at' => Carbon::now(),
             ]);
 
-            // 2. Update Leave Status
-            $statusChanged = false;
-
+            // 2. Update Leave Application Status
             if ($action === 'approved') {
                 $maxStep = ApprovalStep::where('office_id', $leave->office_id)->max('step_order');
 
@@ -160,30 +156,26 @@ class LeaveActionController extends Controller
                     $leave->status = 'pending';
                 } else {
                     $leave->status = 'approved';
-                    $statusChanged = true;
                 }
             } elseif ($action === 'returned') {
                 $leave->status = 'returned';
-                $statusChanged = true;
             } elseif ($action === 'disapproved') {
                 $leave->status = 'disapproved';
-                $statusChanged = true;
             }
 
             $leave->save();
-
         });
 
-            // 3. SEND EMAIL NOTIFICATION
-            if ($statusChanged && $leave->employee && $leave->employee->user) {
-                try {
-                    Mail::to($leave->employee->user->email)->send(
-                        new LeaveStatusUpdated($leave, $remarks, $user->first_name . ' ' . $user->last_name)
-                    );
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send leave email: ' . $e->getMessage());
-                }
+        // 3. SEND EMAIL NOTIFICATION )
+        if ($leave->employee && $leave->employee->user) {
+            try {
+                Mail::to($leave->employee->user->email)->send(
+                    new LeaveStatusUpdated($leave, $remarks, $user->first_name . ' ' . $user->last_name)
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send leave email: ' . $e->getMessage());
             }
+        }
 
         return redirect()->route('approver.inbox')->with('status', 'Application processed successfully.');
     }
