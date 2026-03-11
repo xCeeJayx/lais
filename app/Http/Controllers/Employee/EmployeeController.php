@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use App\Models\{LeaveApplication, ApprovalStep};
 
-class LeaveController extends Controller
+class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
