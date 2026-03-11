@@ -19,6 +19,20 @@
         </div>
     @endif
 
+    {{-- Triggered after 3 failed login attempts --}}
+    @if (session('require_password_reset'))
+        <div class="alert alert-warning border-warning shadow-sm">
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-shield-lock text-warning fs-4 me-2"></i>
+                <div class="fw-bold h6 mb-0">Multiple Failed Attempts</div>
+            </div>
+            <p class="mb-2 small">You have entered an incorrect password multiple times. If you forgot your password, you can reset it safely.</p>
+            <a href="{{ route('password.request') }}" class="btn btn-sm btn-warning fw-bold w-100">
+                Reset My Password
+            </a>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('login') }}">
         @csrf
 

@@ -27,7 +27,7 @@
           <div class="card-body">
             <div class="row g-3">
 
-              <div class="col-md-6">
+              <div class="col-md-3">
                 <label class="form-label">Type of Leave <span class="text-danger">*</span></label>
                 <select class="form-select @error('leave_type_id') is-invalid @enderror" name="leave_type_id" id="leave_type_id" required>
                   <option value="">-- Select --</option>
@@ -40,48 +40,37 @@
                 @error('leave_type_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
+              {{-- Flatpickr Dates Input --}}
               <div class="col-md-3">
-                <label class="form-label">Start Date <span class="text-danger">*</span></label>
-                <input type="date" class="form-control @error('start_date') is-invalid @enderror" name="start_date" id="start_date"
-                       value="{{ old('start_date') }}" required>
-                @error('start_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                <label class="form-label">Leave Dates <span class="text-danger">*</span></label>
+                <input type="text" id="leave_dates" name="dates" class="form-control bg-white @error('dates') is-invalid @enderror" value="{{ old('dates') }}" placeholder="Click to select dates..." required readonly>
+                @error('dates') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
-              <div class="col-md-3">
-                <label class="form-label">End Date <span class="text-danger">*</span></label>
-                <input type="date" class="form-control @error('end_date') is-invalid @enderror" name="end_date" id="end_date"
-                       value="{{ old('end_date') }}" required>
-                @error('end_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-label">Reason / Purpose <span class="text-danger">*</span></label>
-                <textarea class="form-control @error('reason') is-invalid @enderror" name="reason" rows="3" required
-                          placeholder="Write the reason/purpose for this leave...">{{ old('reason') }}</textarea>
-                @error('reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
-              </div>
-
-              <div class="col-md-3">
-                <label class="form-label">No. of Working Days <span class="text-danger">*</span></label>
-                <div class="input-group">
-                  <input type="number" step="0.5" min="0.5" max="365"
-                         class="form-control @error('working_days_requested') is-invalid @enderror"
-                         name="working_days_requested" id="working_days_requested"
-                         value="{{ old('working_days_requested', 1) }}" required>
-                  <button type="button" class="btn btn-outline-secondary" id="btnAutoDays">Auto-calc</button>
-                </div>
+              <div class="col-md-0 d-none">
+                <label class="form-label">No. of Days</label>
+                <input type="number" step="0.5" min="0.5" max="365"
+                       class="form-control @error('working_days_requested') is-invalid @enderror"
+                       name="working_days_requested" id="working_days_requested"
+                       value="{{ old('working_days_requested', '') }}" required>
                 @error('working_days_requested') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                <div class="form-text" id="autoDaysHint">Tip: click Auto-calc after choosing start/end date.</div>
               </div>
 
-              <div class="col-md-3">
-                <label class="form-label">Commutation (Optional)</label>
+              <div class="col-md-2">
+                <label class="form-label">Commutation</label>
                 <select class="form-select @error('commutation') is-invalid @enderror" name="commutation" id="commutation">
                   <option value="">-- Select --</option>
                   <option value="requested" {{ old('commutation') === 'requested' ? 'selected' : '' }}>Requested</option>
                   <option value="not_requested" {{ old('commutation') === 'not_requested' ? 'selected' : '' }}>Not Requested</option>
                 </select>
                 @error('commutation') <div class="invalid-feedback">{{ $message }}</div> @enderror
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Reason / Purpose <span class="text-danger">*</span></label>
+                <textarea class="form-control @error('reason') is-invalid @enderror" name="reason" rows="2" required
+                          placeholder="Write the reason/purpose for this leave...">{{ old('reason') }}</textarea>
+                @error('reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
               {{-- Required Docs --}}
@@ -118,7 +107,7 @@
                     <ul class="mb-0 small" id="fileList"><li class="text-muted">No files selected.</li></ul>
                     </div>
                 </div>
-                </div>
+              </div>
 
 
             </div>
@@ -416,33 +405,49 @@
 @endsection
 
 @push('scripts')
+{{-- Flatpickr CSS and JS --}}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
 <script>
 (function() {
   const $leaveType = $('#leave_type_id');
   const $days = $('#working_days_requested');
-  const $start = $('#start_date');
-  const $end = $('#end_date');
-
   const $reqList = $('#requiredDocsList');
   const $reqStatus = $('#reqDocsStatus');
 
+  // Init Flatpickr exactly like the screenshot design
+  const fp = flatpickr("#leave_dates", {
+      mode: "multiple",
+      dateFormat: "Y-m-d",
+      onChange: function(selectedDates, dateStr, instance) {
+          let count = 0;
+
+          selectedDates.forEach(function(d) {
+              const day = d.getDay();
+              // Count valid weekdays (skip Sunday=0, Saturday=6)
+              if (day !== 0 && day !== 6) count++;
+          });
+
+          if (count > 0) {
+              $days.val(count);
+              $('#autoDaysHint').text('Auto-calculated based on selected valid weekdays. Edit for half-days.');
+          } else {
+              $days.val('');
+              $('#autoDaysHint').text('Please select valid weekday dates first.');
+          }
+
+          // Trigger required docs update immediately after calculating the days
+          refreshRequiredDocs();
+      }
+  });
+
   const sections = {
-    VL: $('#sectionVL'),
-    SL: $('#sectionSL'),
-    ML: $('#sectionML'),
-    PL: $('#sectionPL'),
-    SPL: $('#sectionSPL'),
-    SOLO: $('#sectionSOLO'),
-    STUDY: $('#sectionSTUDY'),
-    VAWC: $('#sectionVAWC'),
-    REHAB: $('#sectionREHAB'),
-    WOMEN: $('#sectionWOMEN'),
-    CALAMITY: $('#sectionCALAMITY'),
-    MON: $('#sectionMON'),
-    TL: $('#sectionTL'),
-    ADOPT: $('#sectionADOPT'),
+    VL: $('#sectionVL'), SL: $('#sectionSL'), ML: $('#sectionML'), PL: $('#sectionPL'),
+    SPL: $('#sectionSPL'), SOLO: $('#sectionSOLO'), STUDY: $('#sectionSTUDY'), VAWC: $('#sectionVAWC'),
+    REHAB: $('#sectionREHAB'), WOMEN: $('#sectionWOMEN'), CALAMITY: $('#sectionCALAMITY'),
+    MON: $('#sectionMON'), TL: $('#sectionTL'), ADOPT: $('#sectionADOPT'),
   };
 
   function selectedLeaveCode() {
@@ -486,8 +491,7 @@
         data: {
           _token: "{{ csrf_token() }}",
           leave_type_id: leaveTypeId,
-          start_date: $start.val(),
-          end_date: $end.val(),
+          dates: $('#leave_dates').val(), // Flatpickr returns string: "2026-03-17, 2026-03-18"
           working_days_requested: $days.val(),
           details: buildDetailsPayload(),
         }
@@ -511,41 +515,10 @@
   }
 
   function escapeHtml(str) {
-    return String(str)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+    return String(str).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
   }
 
-  // Auto-calc days (simple: counts weekdays between start/end inclusive)
-  function calcWorkingDaysInclusive(start, end) {
-    const s = new Date(start);
-    const e = new Date(end);
-    if (isNaN(s) || isNaN(e) || s > e) return null;
-
-    let count = 0;
-    const d = new Date(s);
-    while (d <= e) {
-      const day = d.getDay(); // 0 Sun ... 6 Sat
-      if (day !== 0 && day !== 6) count++;
-      d.setDate(d.getDate() + 1);
-    }
-    return count || 1;
-  }
-
-  $('#btnAutoDays').on('click', function() {
-    const s = $start.val(), e = $end.val();
-    const wd = calcWorkingDaysInclusive(s, e);
-    if (wd !== null) {
-      $days.val(wd);
-      refreshRequiredDocs();
-      $('#autoDaysHint').text('Auto-calculated weekdays (Mon–Fri). You can still edit if needed.');
-    }
-  });
-
-  // ✅ FIX: allow “append files” instead of replace
+  // Allow “append files” instead of replace
   const fileInput = document.getElementById('attachments');
   const fileList = document.getElementById('fileList');
   const dt = new DataTransfer();
@@ -574,7 +547,6 @@
   }
 
   fileInput.addEventListener('change', function() {
-    // append newly selected
     Array.from(fileInput.files).forEach(f => dt.items.add(f));
     fileInput.files = dt.files;
     renderFiles();
@@ -583,6 +555,7 @@
   $('#btnReset').on('click', function() {
     setTimeout(function() {
       hideAllSections();
+      fp.clear(); // Clear the calendar
       refreshRequiredDocs();
       dt.items.clear();
       fileInput.value = '';
@@ -597,8 +570,6 @@
   });
 
   $days.on('input', refreshRequiredDocs);
-  $start.on('change', refreshRequiredDocs);
-  $end.on('change', refreshRequiredDocs);
 
   // initial
   showHideSections();

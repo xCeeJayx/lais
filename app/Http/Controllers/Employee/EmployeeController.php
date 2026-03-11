@@ -1,173 +1,264 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
-
+namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Models\Employee;
-use App\Models\Office;
-use App\Models\Division;
-use App\Models\Role;
+use App\Models\LeaveAttachment;
+use App\Models\LeaveType;
+use App\Services\LeaveRules\RequiredDocsEvaluator;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Collection;
+use App\Models\{LeaveApplication, ApprovalStep};
 
-class EmployeeController extends Controller
+class LeaveController extends Controller
 {
-    /**
-     * Display a listing of employees.
-     */
     public function index(Request $request)
     {
-        $query = Employee::with(['user', 'office', 'division']);
+        $user = $request->user()->loadMissing('employee');
 
-        // Search Filter
-        if ($search = $request->get('search')) {
-            $query->whereHas('user', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
+        if (!$user->employee) {
+            abort(403, 'No employee profile assigned.');
         }
 
-        // Office Filter
-        if ($officeId = $request->get('office_id')) {
-            $query->where('office_id', $officeId);
-        }
+        $leaves = LeaveApplication::with('leaveType')
+            ->where('employee_id', $user->employee->id)
+            ->latest()
+            ->paginate(15);
 
-        $employees = $query->paginate(10)->withQueryString();
-        $offices = Office::all(); // For filter dropdown
-
-        return view('admin.employees.index', compact('employees', 'offices'));
+        return view('employee.leaves.index', compact('leaves'));
     }
 
-    /**
-     * Show the form for creating a new employee.
-     */
-    public function create()
+    public function create(Request $request)
     {
-        $offices = Office::all();
-        $divisions = Division::all();
-        // Fetch only relevant roles (exclude super_admin for safety)
-        $roles = Role::where('key', '!=', 'super_admin')->get();
+        $user = $request->user()->loadMissing('employee');
 
-        return view('admin.employees.create', compact('offices', 'divisions', 'roles'));
+        if (!$user->employee) {
+            abort(403, 'No employee profile assigned.');
+        }
+
+        $types = LeaveType::where('is_active', true)->orderBy('name')->get();
+
+        return view('employee.leaves.create', compact('types'));
     }
 
-    /**
-     * Store a newly created employee in storage.
-     */
+    public function show(Request $request, int $id)
+    {
+       $leave = LeaveApplication::with([
+            'leaveType',
+            'office',
+            'attachments',
+            'approvals.approver', // make sure relationship exists
+            'employee.user',
+        ])->findOrFail($id);
+
+        // All steps for this office
+        $steps = ApprovalStep::where('office_id', $leave->office_id)
+            ->orderBy('step_order')
+            ->get();
+
+        // Index approvals by step_order (one per step)
+        $approvalsByStep = $leave->approvals->keyBy('step_order');
+
+        $timeline = $steps->map(function ($step) use ($leave, $approvalsByStep) {
+            $ap = $approvalsByStep->get($step->step_order);
+
+            // If acted already (approved/returned/disapproved)
+            if ($ap) {
+                return [
+                    'step_order' => $step->step_order,
+                    'role_key'   => $step->role_key,
+                    'title'      => $step->label ?? $step->role_key,
+                    'state'      => $ap->action,
+                    'remarks'    => $ap->remarks,
+                    'actor'      => $ap->approver->name ?? null,
+                    'acted_at'   => $ap->acted_at ?? $ap->created_at,
+                ];
+            }
+
+            // Not acted yet
+            $isCurrent = ((int)$leave->current_step_order === (int)$step->step_order);
+
+            return [
+                'step_order' => $step->step_order,
+                'role_key'   => $step->role_key,
+                'title'      => $step->label ?? $step->role_key,
+                'state'      => $isCurrent ? 'current' : 'upcoming',
+                'remarks'    => null,
+                'actor'      => null,
+                'acted_at'   => null,
+            ];
+        });
+
+        return view('employee.leaves.show', compact('leave', 'timeline'));
+    }
+
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8|confirmed',
-            'office_id' => 'required|exists:offices,id',
-            'division_id' => 'nullable|exists:divisions,id',
-            'position_title' => 'required|string|max:255',
-            'salary_grade' => 'nullable|integer|min:1|max:33',
-            'roles' => 'array' // Array of role IDs
+        $user = $request->user()->loadMissing('employee');
+
+        if (!$user->employee) {
+            abort(403, 'No employee profile assigned.');
+        }
+
+        $validated = $request->validate([
+            'leave_type_id' => 'required|exists:leave_types,id',
+            'dates' => 'required|string', // NEW: Flatpickr sends a comma-separated string
+            'working_days_requested' => 'required|numeric|min:0.5|max:365',
+            'reason' => 'required|string|max:2000',
+            'commutation' => 'nullable|string|max:50',
+            'details' => 'nullable|array',
+            'attachments' => ['nullable', 'array', 'max:10'],
+            'attachments.*' => ['file', 'max:5120', 'mimes:pdf,jpg,jpeg,png'],
         ]);
 
-        DB::transaction(function () use ($request) {
-            // 1. Create User
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
+        $leaveType = LeaveType::with('requiredDocuments')->findOrFail($validated['leave_type_id']);
+
+        // Convert the comma-separated string back into an array and sort it
+        $datesArray = array_filter(array_map('trim', explode(',', $validated['dates'])));
+        if (empty($datesArray)) {
+            return back()->withInput()->withErrors(['dates' => 'Please select at least one date.']);
+        }
+
+        $dates = collect($datesArray)->map(fn($d) => Carbon::parse($d))->sort()->values();
+        $start_date = $dates->first()->toDateString();
+        $end_date = $dates->last()->toDateString();
+
+        // Normalize details booleans
+        $details = $validated['details'] ?? [];
+        $details['abroad'] = !empty($details['abroad']);
+        $details['no_consultation'] = !empty($details['no_consultation']);
+        $details['reason'] = $validated['reason'];
+        $details['selected_dates'] = $dates->map->toDateString()->toArray(); // Save the exact dates
+
+        $start = Carbon::parse($start_date)->startOfDay();
+        $today = now()->startOfDay();
+
+        // Vacation Leave: 5 days in advance when possible
+        if ($leaveType->code === 'VL') {
+            $diff = $today->diffInDays($start, false);
+            if ($diff < 5) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['dates' => 'Vacation Leave should be filed at least 5 days in advance when possible.']);
+            }
+        }
+
+        // Sick Leave filed in advance: require attachment
+        if ($leaveType->code === 'SL') {
+            if ($start->isFuture() && !$request->hasFile('attachments')) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['attachments' => 'Sick Leave filed in advance requires supporting document (e.g., medical certificate).']);
+            }
+        }
+
+        // Required documents evaluator
+        $payload = [
+            'working_days_requested' => (float)$validated['working_days_requested'],
+            'filed_in_advance' => $start->isFuture(),
+            'details' => $details,
+        ];
+
+        $requiredDocs = app(RequiredDocsEvaluator::class)->requiredDocsFor($leaveType, $payload);
+
+        // MVP: if any required docs exist, require at least one uploaded attachment
+        if (!empty($requiredDocs) && !$request->hasFile('attachments')) {
+            $names = collect($requiredDocs)->pluck('name')->join(', ');
+            return back()
+                ->withInput()
+                ->withErrors(['attachments' => "Required document(s) missing: {$names}"]);
+        }
+
+        $leave = DB::transaction(function () use ($validated, $user, $request, $details, $start_date, $end_date) {
+
+            $leave = LeaveApplication::create([
+                'employee_id' => $user->employee->id,
+                'office_id' => $user->employee->office_id,
+                'leave_type_id' => $validated['leave_type_id'],
+
+                'date_filed' => now()->toDateString(),
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+                'working_days_requested' => $validated['working_days_requested'],
+
+                'status' => 'pending',
+                'current_step_order' => 1,
+
+                'details_json' => $details ?: null,
+                'commutation' => $validated['commutation'] ?? null,
             ]);
 
-            // 2. Create Employee Profile
-            Employee::create([
-                'user_id' => $user->id,
-                'office_id' => $request->office_id,
-                'division_id' => $request->division_id,
-                'position_title' => $request->position_title,
-                'salary_grade' => $request->salary_grade,
-                'status' => 'active',
-            ]);
+            // Attachments (public disk)
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    if (!$file) continue;
 
-            // 3. Assign Roles (Always add 'employee' role + selected roles)
-            $roles = $request->roles ?? [];
-            // Ensure 'employee' role is always assigned
-            $employeeRole = Role::where('key', 'employee')->first();
-            if ($employeeRole && !in_array($employeeRole->id, $roles)) {
-                $roles[] = $employeeRole->id;
+                    $path = $file->store("leave_attachments/{$leave->id}", 'public');
+
+                    LeaveAttachment::create([
+                        'leave_application_id' => $leave->id,
+                        'file_path' => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                        'mime_type' => $file->getClientMimeType(),
+                        'size' => $file->getSize(),
+                        'uploaded_by' => $user->id,
+                    ]);
+                }
             }
 
-            $user->roles()->sync($roles);
+            return $leave;
         });
 
-        return redirect()->route('admin.employees.index')
-                         ->with('success', 'Employee created successfully.');
+        return redirect()
+            ->route('employee.leaves.show', $leave->id)
+            ->with('status', 'Leave application submitted.');
     }
 
     /**
-     * Show the form for editing the specified employee.
+     * AJAX endpoint used by the Apply Leave form to show required docs hint.
      */
-    public function edit($id)
+    public function requiredDocs(Request $request): JsonResponse
     {
-        $employee = Employee::with('user.roles')->findOrFail($id);
-        $offices = Office::all();
-        $divisions = Division::where('office_id', $employee->office_id)->get(); // Load divisions for selected office
-        $allDivisions = Division::all(); // Needed for JS filtering if user changes office
-        $roles = Role::where('key', '!=', 'super_admin')->get();
-
-        return view('admin.employees.edit', compact('employee', 'offices', 'divisions', 'allDivisions', 'roles'));
-    }
-
-    /**
-     * Update the specified employee in storage.
-     */
-    public function update(Request $request, $id)
-    {
-        $employee = Employee::findOrFail($id);
-        $user = $employee->user;
-
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'password' => 'nullable|string|min:8|confirmed',
-            'office_id' => 'required|exists:offices,id',
-            'division_id' => 'nullable|exists:divisions,id',
-            'position_title' => 'required|string|max:255',
-            'salary_grade' => 'nullable|integer',
-            'status' => 'required|in:active,inactive,suspended',
-            'roles' => 'array'
+            'leave_type_id' => 'required|exists:leave_types,id',
+            'working_days_requested' => 'nullable|numeric|min:0.5|max:365',
+            'dates' => 'nullable|string', // Handling flatpickr string
+            'details' => 'nullable|array',
         ]);
 
-        DB::transaction(function () use ($request, $employee, $user) {
-            // 1. Update User
-            $userData = [
-                'name' => $request->name,
-                'email' => $request->email,
-            ];
-            if ($request->filled('password')) {
-                $userData['password'] = Hash::make($request->password);
+        $leaveType = LeaveType::with('requiredDocuments')->findOrFail($request->leave_type_id);
+
+        $details = $request->input('details', []);
+        $details['abroad'] = !empty($details['abroad']);
+        $details['no_consultation'] = !empty($details['no_consultation']);
+
+        $filedInAdvance = false;
+        if ($request->filled('dates')) {
+            // Check based on the earliest selected date
+            $datesArray = array_filter(array_map('trim', explode(',', $request->dates)));
+            if (count($datesArray) > 0) {
+                $dates = collect($datesArray)->map(fn($d) => \Carbon\Carbon::parse($d))->sort();
+                $filedInAdvance = $dates->first()->startOfDay()->isFuture();
             }
-            $user->update($userData);
+        }
 
-            // 2. Update Employee Profile
-            $employee->update([
-                'office_id' => $request->office_id,
-                'division_id' => $request->division_id,
-                'position_title' => $request->position_title,
-                'salary_grade' => $request->salary_grade,
-                'status' => $request->status,
-            ]);
+        $payload = [
+            'working_days_requested' => (float)($request->working_days_requested ?? 0),
+            'filed_in_advance' => $filedInAdvance,
+            'details' => $details,
+        ];
 
-            // 3. Update Roles
-            $roles = $request->roles ?? [];
-            // Ensure 'employee' role is preserved unless explicitly removed (but usually we keep it)
-            $employeeRole = Role::where('key', 'employee')->first();
-            if ($employeeRole && !in_array($employeeRole->id, $roles)) {
-                $roles[] = $employeeRole->id;
-            }
-            $user->roles()->sync($roles);
-        });
+        $requiredDocs = app(RequiredDocsEvaluator::class)->requiredDocsFor($leaveType, $payload);
 
-        return redirect()->route('admin.employees.index')
-                         ->with('success', 'Employee updated successfully.');
+        return response()->json([
+            'leave_type' => [
+                'id' => $leaveType->id,
+                'code' => $leaveType->code,
+                'name' => $leaveType->name,
+            ],
+            'required_docs' => $requiredDocs,
+        ]);
     }
 }
