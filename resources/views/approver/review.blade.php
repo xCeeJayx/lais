@@ -7,9 +7,17 @@
             <h3 class="mb-0">Review Leave Application</h3>
             <div class="text-muted">Application #{{ $leave->id }} - {{ $leave->employee->user->first_name }} {{ $leave->employee->user->last_name }}</div>
         </div>
-        <a href="{{ route('approver.inbox') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i> Back to Inbox
-        </a>
+
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary"
+                href="{{ route('approver.leaves.form6.pdf', $leave->id) }}"
+                target="_blank">
+                <i class="bi bi-printer me-1"></i> Form Preview
+            </a>
+            <a href="{{ route('approver.inbox') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Inbox
+            </a>
+        </div>
     </div>
 
     <div class="row g-4">
@@ -38,13 +46,21 @@
                         <div class="col-md-8 fw-bold text-primary">{{ $leave->leaveType->name }}</div>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-4 text-muted small">Inclusive Dates</div>
+                        <div class="col-md-4 text-muted small">Days Requested</div>
                         <div class="col-md-8">
-                            {{ \Carbon\Carbon::parse($leave->start_date)->format('M d, Y') }}
-                            to {{ \Carbon\Carbon::parse($leave->end_date)->format('M d, Y') }}
-                            <span class="badge bg-secondary ms-2">{{ $leave->working_days_requested }} Day(s)</span>
+                            <span class="badge bg-secondary fs-6">{{ $leave->working_days_requested }} Day(s)</span>
                         </div>
                     </div>
+
+                    {{-- VISUAL INLINE CALENDAR FOR DATES --}}
+                    @if($leave->getDetail('selected_dates') && is_array($leave->getDetail('selected_dates')))
+                    <div class="row mb-3">
+                        <div class="col-md-4 text-muted small">Selected Dates</div>
+                        <div class="col-md-8">
+                            <input type="text" id="selectedDatesVisual" class="d-none">
+                        </div>
+                    </div>
+                    @endif
 
                     {{-- DYNAMIC CS FORM 6 DETAILS --}}
                     <div class="row mb-3">
@@ -82,12 +98,13 @@
 
                             {{-- Catch any other dynamic form details just in case --}}
                             @php
+                                // We added 'selected_dates' here so it doesn't double print
                                 $excludeKeys = [
                                     'vl_earned', 'vl_less', 'vl_balance',
                                     'sl_earned', 'sl_less', 'sl_balance',
                                     'credits_as_of', 'abroad', 'location',
                                     'no_consultation', 'reason', 'study_type',
-                                    'edd', 'allocation'
+                                    'edd', 'allocation', 'selected_dates'
                                 ];
                                 $extraDetails = collect($leave->details_json ?? $leave->details ?? [])->except($excludeKeys)->filter(function($val) {
                                     return $val !== null && $val !== '';
@@ -97,7 +114,14 @@
                             @if($extraDetails->isNotEmpty())
                                 <ul class="mb-0 ps-3 mt-2">
                                     @foreach($extraDetails as $key => $val)
-                                        <li><strong>{{ ucwords(str_replace('_', ' ', $key)) }}:</strong> {{ is_bool($val) ? ($val ? 'Yes' : 'No') : $val }}</li>
+                                        <li>
+                                            <strong>{{ ucwords(str_replace('_', ' ', $key)) }}:</strong>
+                                            @if(is_array($val))
+                                                {{ implode(', ', $val) }}
+                                            @else
+                                                {{ is_bool($val) ? ($val ? 'Yes' : 'No') : $val }}
+                                            @endif
+                                        </li>
                                     @endforeach
                                 </ul>
                             @endif
@@ -364,4 +388,36 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+{{-- Flatpickr CSS & JS --}}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<style>
+  /* Optional CSS to make the inline calendar look cleaner */
+  .flatpickr-calendar.inline {
+      box-shadow: none !important;
+      border: 1px solid #dee2e6;
+      margin-top: 0.25rem;
+  }
+</style>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    @if($leave->getDetail('selected_dates') && is_array($leave->getDetail('selected_dates')))
+        const originalDates = {!! json_encode($leave->getDetail('selected_dates')) !!};
+
+        flatpickr("#selectedDatesVisual", {
+            inline: true,
+            mode: "multiple",
+            defaultDate: originalDates,
+            // Automatically locks the dates so they can't be added or removed visually
+            onChange: function(selectedDates, dateStr, instance) {
+                instance.setDate(originalDates);
+            }
+        });
+    @endif
+  });
+</script>
+@endpush
+
 @endsection

@@ -19,7 +19,7 @@
       <a class="btn btn-outline-secondary" href="{{ route('employee.leaves.index') }}">
         <i class="bi bi-arrow-left"></i> Back to History
       </a>
-      @if(in_array($leave->status, ['approved','disapproved','returned'], true))
+      @if(in_array($leave->status, ['pending','approved','disapproved','returned'], true))
         <a class="btn btn-outline-primary"
             href="{{ route('employee.leaves.form6.pdf', $leave->id) }}"
             target="_blank">
@@ -140,20 +140,6 @@
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <div class="text-muted small">Start Date</div>
-              <div class="fw-semibold">
-                {{ optional($leave->start_date)->format('Y-m-d') ?? $leave->start_date }}
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <div class="text-muted small">End Date</div>
-              <div class="fw-semibold">
-                {{ optional($leave->end_date)->format('Y-m-d') ?? $leave->end_date }}
-              </div>
-            </div>
-
-            <div class="col-md-6">
               <div class="text-muted small">Days Requested</div>
               <div class="fw-semibold">{{ $leave->working_days_requested ?? '—' }}</div>
             </div>
@@ -173,40 +159,58 @@
           @endphp
 
           <hr class="my-3">
-          <div class="fw-semibold mb-2">Additional Details</div>
 
-          <div class="row g-2">
+          {{-- 2-COLUMN LAYOUT: Details (Left) + Calendar (Right) --}}
+          <div class="row g-4">
+
+            {{-- Additional Details Column --}}
             <div class="col-md-6">
-              <div class="p-2 border rounded bg-light">
-                <div class="text-muted small">Abroad</div>
-                <div class="fw-semibold">{{ !empty($details['abroad']) ? 'Yes' : 'No' }}</div>
+              <div class="fw-semibold mb-3">Additional Details</div>
+              <div class="row g-2">
+                <div class="col-sm-6">
+                  <div class="p-2 border rounded bg-light h-100">
+                    <div class="text-muted small">Abroad</div>
+                    <div class="fw-semibold">{{ !empty($details['abroad']) ? 'Yes' : 'No' }}</div>
+                  </div>
+                </div>
+
+                <div class="col-sm-6">
+                  <div class="p-2 border rounded bg-light h-100">
+                    <div class="text-muted small">No Consultation</div>
+                    <div class="fw-semibold">{{ !empty($details['no_consultation']) ? 'Yes' : 'No' }}</div>
+                  </div>
+                </div>
+
+                @if(!empty($details['reason']))
+                  <div class="col-12">
+                    <div class="p-2 border rounded bg-light">
+                      <div class="text-muted small">Reason</div>
+                      <div class="fw-semibold">{{ $details['reason'] }}</div>
+                    </div>
+                  </div>
+                @endif
+
+                @if(!empty($details['location']))
+                  <div class="col-12">
+                    <div class="p-2 border rounded bg-light">
+                      <div class="text-muted small">Location</div>
+                      <div class="fw-semibold">{{ $details['location'] }}</div>
+                    </div>
+                  </div>
+                @endif
               </div>
             </div>
 
-            <div class="col-md-6">
-              <div class="p-2 border rounded bg-light">
-                <div class="text-muted small">No Consultation</div>
-                <div class="fw-semibold">{{ !empty($details['no_consultation']) ? 'Yes' : 'No' }}</div>
-              </div>
-            </div>
-
-            @if(!empty($details['reason']))
-              <div class="col-12">
-                <div class="p-2 border rounded bg-light">
-                  <div class="text-muted small">Reason</div>
-                  <div class="fw-semibold">{{ $details['reason'] }}</div>
+            {{-- Selected Dates Calendar Column --}}
+            @if(!empty($details['selected_dates']) && is_array($details['selected_dates']))
+              <div class="col-md-6">
+                <div class="fw-semibold mb-3">Specific Dates Selected</div>
+                <div class="d-flex justify-content-center p-2 border rounded bg-light">
+                  <input type="text" id="selectedDatesVisual" class="d-none">
                 </div>
               </div>
             @endif
 
-            @if(!empty($details['location']))
-              <div class="col-12">
-                <div class="p-2 border rounded bg-light">
-                  <div class="text-muted small">Location</div>
-                  <div class="fw-semibold">{{ $details['location'] }}</div>
-                </div>
-              </div>
-            @endif
           </div>
 
         </div>
@@ -327,3 +331,34 @@
 
 </div>
 @endsection
+
+@push('scripts')
+{{-- Flatpickr CSS & JS --}}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<style>
+  /* Optional CSS to make the inline calendar look cleaner */
+  .flatpickr-calendar.inline {
+      box-shadow: none !important;
+      border: 1px solid #dee2e6;
+      border-radius: 0.375rem;
+  }
+</style>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    @if(!empty($details['selected_dates']) && is_array($details['selected_dates']))
+        const originalDates = {!! json_encode($details['selected_dates']) !!};
+
+        flatpickr("#selectedDatesVisual", {
+            inline: true,
+            mode: "multiple",
+            defaultDate: originalDates,
+            // Automatically locks the dates so they can't be added or removed visually
+            onChange: function(selectedDates, dateStr, instance) {
+                instance.setDate(originalDates);
+            }
+        });
+    @endif
+  });
+</script>
+@endpush

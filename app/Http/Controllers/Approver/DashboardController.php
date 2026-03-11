@@ -7,6 +7,7 @@ use App\Models\ApprovalStep;
 use App\Models\LeaveApplication;
 use App\Models\LeaveApproval;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
@@ -65,6 +66,67 @@ class DashboardController extends Controller
             'female' => \App\Models\Employee::where('sex', 'F')->count(),
         ];
 
-        return view('approver.dashboard', compact('stats'));
+        // ---------------------------------------------------------
+        // 3. Calendar Data (Grouped by Date for Flatpickr)
+        // ---------------------------------------------------------
+        $leavesQuery = LeaveApplication::with(['employee.user', 'leaveType'])
+            ->where('status', 'approved');
+
+        // Restrict to Own Division if Division Chief
+        if ($user->hasRole('approver_division_chief')) {
+            $divisionId = $user->employee?->division_id;
+            $leavesQuery->whereHas('employee', fn($q) => $q->where('division_id', $divisionId));
+        } else {
+            // ARD or HR sees the whole office
+            $leavesQuery->where('office_id', $officeId);
+        }
+
+        $approvedLeaves = $leavesQuery->get();
+
+        $leavesByDate = [];
+        $colors = [
+            'VL' => '#198754',  // Green
+            'SL' => '#dc3545',  // Red
+            'SPL' => '#0dcaf0', // Cyan
+            'ML' => '#d63384',  // Pink
+            'PL' => '#0d6efd',  // Blue
+        ];
+
+        foreach ($approvedLeaves as $leave) {
+            $empName = $leave->employee->user->first_name . ' ' . $leave->employee->user->last_name;
+            $leaveCode = $leave->leaveType->code;
+            $color = $colors[$leaveCode] ?? '#6c757d'; // Default gray if not mapped
+
+            $details = $leave->details_json ?? [];
+            if (is_string($details)) {
+                $details = json_decode($details, true) ?? [];
+            }
+
+            // If using the exact specific dates (Flatpickr style array)
+            if (!empty($details['selected_dates']) && is_array($details['selected_dates'])) {
+                foreach ($details['selected_dates'] as $dateStr) {
+                    $leavesByDate[$dateStr][] = [
+                        'name' => $empName,
+                        'leave_type' => $leave->leaveType->name,
+                        'color' => $color
+                    ];
+                }
+            } else {
+                // Fallback for legacy continuous start/end dates
+                $start = Carbon::parse($leave->start_date);
+                $end = Carbon::parse($leave->end_date);
+                while ($start->lte($end)) {
+                    $dStr = $start->toDateString();
+                    $leavesByDate[$dStr][] = [
+                        'name' => $empName,
+                        'leave_type' => $leave->leaveType->name,
+                        'color' => $color
+                    ];
+                    $start->addDay();
+                }
+            }
+        }
+
+        return view('approver.dashboard', compact('stats', 'leavesByDate'));
     }
 }

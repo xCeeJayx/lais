@@ -47,7 +47,7 @@
                 @error('dates') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
-              <div class="col-md-0 d-none">
+              <div class="col-md-1 d-none">
                 <label class="form-label">No. of Days</label>
                 <input type="number" step="0.5" min="0.5" max="365"
                        class="form-control @error('working_days_requested') is-invalid @enderror"

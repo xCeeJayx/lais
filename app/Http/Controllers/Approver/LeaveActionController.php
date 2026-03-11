@@ -116,7 +116,9 @@ class LeaveActionController extends Controller
             return back()->withErrors(['remarks' => 'Remarks are required when returning or disapproving.']);
         }
 
-        DB::transaction(function () use ($request, $leave, $user, $action, $remarks) {
+        $statusChanged = false;
+
+        DB::transaction(function () use ($request, $leave, $user, $action, $remarks, &$statusChanged) {
 
             // NEW: If Chief Personnel, save the Leave Credits Certification Details
             if ($user->hasRole('approver_chief_personnel')) {
@@ -170,6 +172,8 @@ class LeaveActionController extends Controller
 
             $leave->save();
 
+        });
+
             // 3. SEND EMAIL NOTIFICATION
             if ($statusChanged && $leave->employee && $leave->employee->user) {
                 try {
@@ -180,7 +184,6 @@ class LeaveActionController extends Controller
                     \Illuminate\Support\Facades\Log::error('Failed to send leave email: ' . $e->getMessage());
                 }
             }
-        });
 
         return redirect()->route('approver.inbox')->with('status', 'Application processed successfully.');
     }
