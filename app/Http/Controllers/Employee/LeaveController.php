@@ -69,8 +69,8 @@ class LeaveController extends Controller
                 return [
                     'step_order' => $step->step_order,
                     'role_key'   => $step->role_key,
-                    'title'      => $step->label ?? $step->role_key, // if you have label column
-                    'state'      => $ap->action, // approved/returned/disapproved
+                    'title'      => $step->label ?? $step->role_key,
+                    'state'      => $ap->action,
                     'remarks'    => $ap->remarks,
                     'actor'      => $ap->approver->name ?? null,
                     'acted_at'   => $ap->acted_at ?? $ap->created_at,
@@ -102,46 +102,51 @@ class LeaveController extends Controller
             abort(403, 'No employee profile assigned.');
         }
 
+        // FIXED: Replaced start_date and end_date validation with 'dates'
         $validated = $request->validate([
             'leave_type_id' => 'required|exists:leave_types,id',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'dates' => 'required|string',
             'working_days_requested' => 'required|numeric|min:0.5|max:365',
             'reason' => 'required|string|max:2000',
             'commutation' => 'nullable|string|max:50',
             'details' => 'nullable|array',
-            'attachments' => ['nullable', 'array', 'max:10'], // up to 10 files
-            'attachments.*' => ['file', 'max:5120', 'mimes:pdf,jpg,jpeg,png'], // 5MB each
-
+            'attachments' => ['nullable', 'array', 'max:10'],
+            'attachments.*' => ['file', 'max:5120', 'mimes:pdf,jpg,jpeg,png'],
         ]);
 
         $leaveType = LeaveType::with('requiredDocuments')->findOrFail($validated['leave_type_id']);
 
-        // Normalize details booleans (checkbox behavior)
+        // Convert the comma-separated string back into an array and sort it
+        $datesArray = array_filter(array_map('trim', explode(',', $validated['dates'])));
+        if (empty($datesArray)) {
+            return back()->withInput()->withErrors(['dates' => 'Please select at least one date.']);
+        }
+
+        $dates = collect($datesArray)->map(fn($d) => Carbon::parse($d))->sort()->values();
+        $start_date = $dates->first()->toDateString();
+        $end_date = $dates->last()->toDateString();
+
+        // Normalize details booleans
         $details = $validated['details'] ?? [];
         $details['abroad'] = !empty($details['abroad']);
         $details['no_consultation'] = !empty($details['no_consultation']);
-
         $details['reason'] = $validated['reason'];
+        $details['selected_dates'] = $dates->map->toDateString()->toArray(); // Save the exact dates
 
-        /**
-         * Basic DENR-like filing rules (MVP)
-         * You can switch these from "block" to "warning" later.
-         */
-        $start = Carbon::parse($validated['start_date'])->startOfDay();
+        $start = Carbon::parse($start_date)->startOfDay();
         $today = now()->startOfDay();
 
-        // Vacation Leave: 5 days in advance when possible (MVP block)
+        // Vacation Leave: 5 days in advance when possible
         if ($leaveType->code === 'VL') {
             $diff = $today->diffInDays($start, false);
             if ($diff < 5) {
                 return back()
                     ->withInput()
-                    ->withErrors(['start_date' => 'Vacation Leave should be filed at least 5 days in advance when possible.']);
+                    ->withErrors(['dates' => 'Vacation Leave should be filed at least 5 days in advance when possible.']);
             }
         }
 
-        // Sick Leave filed in advance: require attachment (MVP)
+        // Sick Leave filed in advance: require attachment
         if ($leaveType->code === 'SL') {
             if ($start->isFuture() && !$request->hasFile('attachments')) {
                 return back()
@@ -150,7 +155,7 @@ class LeaveController extends Controller
             }
         }
 
-        // Required documents evaluator (rules_json based)
+        // Required documents evaluator
         $payload = [
             'working_days_requested' => (float)$validated['working_days_requested'],
             'filed_in_advance' => $start->isFuture(),
@@ -167,7 +172,7 @@ class LeaveController extends Controller
                 ->withErrors(['attachments' => "Required document(s) missing: {$names}"]);
         }
 
-        $leave = DB::transaction(function () use ($validated, $user, $request, $details) {
+        $leave = DB::transaction(function () use ($validated, $user, $request, $details, $start_date, $end_date) {
 
             $leave = LeaveApplication::create([
                 'employee_id' => $user->employee->id,
@@ -175,8 +180,8 @@ class LeaveController extends Controller
                 'leave_type_id' => $validated['leave_type_id'],
 
                 'date_filed' => now()->toDateString(),
-                'start_date' => $validated['start_date'],
-                'end_date' => $validated['end_date'],
+                'start_date' => $start_date,
+                'end_date' => $end_date,
                 'working_days_requested' => $validated['working_days_requested'],
 
                 'status' => 'pending',
@@ -217,10 +222,11 @@ class LeaveController extends Controller
      */
     public function requiredDocs(Request $request): JsonResponse
     {
+        // FIXED: Replaced start_date validation with 'dates'
         $request->validate([
             'leave_type_id' => 'required|exists:leave_types,id',
             'working_days_requested' => 'nullable|numeric|min:0.5|max:365',
-            'start_date' => 'nullable|date',
+            'dates' => 'nullable|string',
             'details' => 'nullable|array',
         ]);
 
@@ -231,8 +237,13 @@ class LeaveController extends Controller
         $details['no_consultation'] = !empty($details['no_consultation']);
 
         $filedInAdvance = false;
-        if ($request->filled('start_date')) {
-            $filedInAdvance = \Carbon\Carbon::parse($request->start_date)->startOfDay()->isFuture();
+        if ($request->filled('dates')) {
+            // Check based on the earliest selected date
+            $datesArray = array_filter(array_map('trim', explode(',', $request->dates)));
+            if (count($datesArray) > 0) {
+                $dates = collect($datesArray)->map(fn($d) => \Carbon\Carbon::parse($d))->sort();
+                $filedInAdvance = $dates->first()->startOfDay()->isFuture();
+            }
         }
 
         $payload = [
@@ -249,7 +260,7 @@ class LeaveController extends Controller
                 'code' => $leaveType->code,
                 'name' => $leaveType->name,
             ],
-            'required_docs' => $requiredDocs, // [{name, key}]
+            'required_docs' => $requiredDocs,
         ]);
     }
 }
