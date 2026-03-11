@@ -50,8 +50,8 @@
         <div class="container">
 
             <div class="header">
-                <img src="{{ $message->embed(public_path('images/denr_logo.png')) }}"
-                     alt="DENR Logo"
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Logo_of_the_Department_of_Environment_and_Natural_Resources.svg/1280px-Logo_of_the_Department_of_Environment_and_Natural_Resources.svg.png"
+                     alt="DENR"
                      class="logo-profile">
 
                 <h2 style="margin: 0; font-size: 20px;">Application Status Update</h2>
@@ -64,10 +64,6 @@
                 <p>Your leave application has been updated.</p>
 
                 <table class="details-table">
-                    <tr>
-                        <td>Reference ID</td>
-                        <td>#{{ $leave->id }}</td>
-                    </tr>
                     <tr>
                         <td>Date Filed</td>
                         <td>{{ $leave->date_filed->format('M d, Y') }}</td>

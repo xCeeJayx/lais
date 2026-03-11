@@ -62,68 +62,142 @@
                     </div>
                     @endif
 
-                    {{-- DYNAMIC CS FORM 6 DETAILS --}}
+                    {{-- DYNAMIC DETAILS DEPENDING ON LEAVE TYPE --}}
                     <div class="row mb-3">
                         <div class="col-md-4 text-muted small">Details of Leave (6.B)</div>
                         <div class="col-md-8">
-                            @if($leave->isType('VL') || $leave->isType('SPL'))
-                                @if($leave->getDetail('abroad'))
-                                    <span class="fw-semibold">Abroad:</span> {{ $leave->getDetail('location') }}
-                                @else
-                                    <span class="fw-semibold">Within the Philippines</span>
-                                @endif
-                            @elseif($leave->isType('SL'))
-                                @if($leave->getDetail('no_consultation'))
-                                    <span class="fw-semibold">Out Patient:</span> {{ $leave->getDetail('reason') ?? 'N/A' }}
-                                @else
-                                    <span class="fw-semibold">In Hospital:</span> {{ $leave->getDetail('reason') ?? 'N/A' }}
-                                @endif
-                            @elseif($leave->isType('WOMEN'))
-                                <span class="fw-semibold">Illness/Surgery:</span> {{ $leave->getDetail('reason') ?? 'N/A' }}
-                            @elseif($leave->isType('STUDY'))
-                                <span class="fw-semibold">Purpose:</span>
-                                {{ $leave->getDetail('study_type') === 'bar' ? "BAR/Board Examination Review" : "Completion of Master's Degree" }}
-                            @elseif($leave->isType('ML'))
-                                <div class="mb-1">
-                                    <span class="fw-semibold">Expected Date of Delivery (EDD):</span>
-                                    {{ $leave->getDetail('edd') ? \Carbon\Carbon::parse($leave->getDetail('edd'))->format('M d, Y') : 'N/A' }}
-                                </div>
-                                <div>
-                                    <span class="fw-semibold">Need allocation (CS Form 6a)?</span>
-                                    {{ $leave->getDetail('allocation') ? 'Yes' : 'No' }}
-                                </div>
-                            @else
-                                <span class="text-muted">Additional Details</span>
-                            @endif
-
-                            {{-- Catch any other dynamic form details just in case --}}
                             @php
-                                // We added 'selected_dates' here so it doesn't double print
-                                $excludeKeys = [
-                                    'vl_earned', 'vl_less', 'vl_balance',
-                                    'sl_earned', 'sl_less', 'sl_balance',
-                                    'credits_as_of', 'abroad', 'location',
-                                    'no_consultation', 'reason', 'study_type',
-                                    'edd', 'allocation', 'selected_dates'
-                                ];
-                                $extraDetails = collect($leave->details_json ?? $leave->details ?? [])->except($excludeKeys)->filter(function($val) {
-                                    return $val !== null && $val !== '';
-                                });
+                                $leaveCode = $leave->leaveType->code ?? '';
+                                $details = $leave->details_json ?? [];
+                                if (is_string($details)) {
+                                    $decoded = json_decode($details, true);
+                                    $details = is_array($decoded) ? $decoded : [];
+                                }
                             @endphp
 
-                            @if($extraDetails->isNotEmpty())
-                                <ul class="mb-0 ps-3 mt-2">
-                                    @foreach($extraDetails as $key => $val)
-                                        <li>
-                                            <strong>{{ ucwords(str_replace('_', ' ', $key)) }}:</strong>
-                                            @if(is_array($val))
-                                                {{ implode(', ', $val) }}
-                                            @else
-                                                {{ is_bool($val) ? ($val ? 'Yes' : 'No') : $val }}
-                                            @endif
-                                        </li>
-                                    @endforeach
-                                </ul>
+                            @if($leaveCode === 'VL')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Travel:</span>
+                                    @if(!empty($details['abroad']) || ($details['vl_travel'] ?? '') === 'abroad')
+                                        Abroad
+                                    @elseif(($details['vl_travel'] ?? '') === 'within_ph')
+                                        Within the Philippines
+                                    @else
+                                        N/A
+                                    @endif
+                                </div>
+                                @if(!empty($details['location']))
+                                <div><span class="fw-semibold">Location/Destination:</span> {{ $details['location'] }}</div>
+                                @endif
+
+                            @elseif($leaveCode === 'SL')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Patient Type:</span>
+                                    @if(!empty($details['no_consultation']))
+                                        Out Patient (No Consultation)
+                                    @else
+                                        {{ ucwords(str_replace('_', ' ', $details['sl_patient_type'] ?? 'N/A')) }}
+                                    @endif
+                                </div>
+                                @if(!empty($details['illness']))
+                                <div><span class="fw-semibold">Illness:</span> {{ $details['illness'] }}</div>
+                                @endif
+
+                            @elseif($leaveCode === 'PL')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Child's Date of Delivery:</span>
+                                    {{ !empty($details['pl_delivery_date']) ? \Carbon\Carbon::parse($details['pl_delivery_date'])->format('M d, Y') : 'N/A' }}
+                                </div>
+                                <div>
+                                    <span class="fw-semibold">Marriage Contract Available:</span>
+                                    {{ ucwords($details['pl_marriage_contract'] ?? 'N/A') }}
+                                </div>
+
+                            @elseif($leaveCode === 'ML')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Expected Date of Delivery (EDD):</span>
+                                    {{ !empty($details['ml_edd']) ? \Carbon\Carbon::parse($details['ml_edd'])->format('M d, Y') : 'N/A' }}
+                                </div>
+                                <div>
+                                    <span class="fw-semibold">CS Form 6a (Allocation) Needed:</span>
+                                    {{ ucwords($details['ml_need_cs6a'] ?? 'N/A') }}
+                                </div>
+
+                            @elseif($leaveCode === 'SPL')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Travel:</span>
+                                    {{ ($details['spl_travel'] ?? '') === 'abroad' ? 'Abroad' : 'Within the Philippines' }}
+                                </div>
+                                @if(!empty($details['spl_location']))
+                                <div><span class="fw-semibold">Destination:</span> {{ $details['spl_location'] }}</div>
+                                @endif
+
+                            @elseif($leaveCode === 'SOLO')
+                                <div class="mb-1"><span class="fw-semibold">Solo Parent ID No:</span> {{ $details['solo_id_no'] ?? 'N/A' }}</div>
+                                <div>
+                                    <span class="fw-semibold">ID Valid Until:</span>
+                                    {{ !empty($details['solo_id_valid_until']) ? \Carbon\Carbon::parse($details['solo_id_valid_until'])->format('M d, Y') : 'N/A' }}
+                                </div>
+
+                            @elseif($leaveCode === 'STUDY')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Purpose:</span>
+                                    @if(($details['study_purpose'] ?? '') === 'masters') Completion of Master's Degree
+                                    @elseif(($details['study_purpose'] ?? '') === 'bar_board_review') BAR/Board Examination Review
+                                    @else Other
+                                    @endif
+                                </div>
+                                @if(!empty($details['study_other']))
+                                <div><span class="fw-semibold">Specific Purpose:</span> {{ $details['study_other'] }}</div>
+                                @endif
+
+                            @elseif($leaveCode === 'VAWC')
+                                <div><span class="fw-semibold">Supporting Document:</span> {{ strtoupper(str_replace('_', ' ', $details['vawc_support'] ?? 'N/A')) }}</div>
+
+                            @elseif($leaveCode === 'REHAB')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Accident Date:</span>
+                                    {{ !empty($details['rehab_accident_date']) ? \Carbon\Carbon::parse($details['rehab_accident_date'])->format('M d, Y') : 'N/A' }}
+                                </div>
+                                <div><span class="fw-semibold">Physician:</span> {{ ucwords($details['rehab_physician'] ?? 'N/A') }}</div>
+
+                            @elseif($leaveCode === 'WOMEN')
+                                <div>
+                                    <span class="fw-semibold">Surgery Date:</span>
+                                    {{ !empty($details['women_surgery_date']) ? \Carbon\Carbon::parse($details['women_surgery_date'])->format('M d, Y') : 'N/A' }}
+                                </div>
+
+                            @elseif($leaveCode === 'CALAMITY')
+                                <div class="mb-1"><span class="fw-semibold">Calamity/Disaster:</span> {{ $details['calamity_name'] ?? 'N/A' }}</div>
+                                <div><span class="fw-semibold">Affected Area:</span> {{ $details['calamity_area'] ?? 'N/A' }}</div>
+
+                            @elseif($leaveCode === 'MON')
+                                <div><span class="fw-semibold">Reason for Monetization:</span> {{ $details['mon_reason'] ?? 'N/A' }}</div>
+
+                            @elseif($leaveCode === 'TL')
+                                <div class="mb-1">
+                                    <span class="fw-semibold">Separation Date:</span>
+                                    {{ !empty($details['tl_separation_date']) ? \Carbon\Carbon::parse($details['tl_separation_date'])->format('M d, Y') : 'N/A' }}
+                                </div>
+                                <div><span class="fw-semibold">Separation Type:</span> {{ ucwords($details['tl_type'] ?? 'N/A') }}</div>
+
+                            @elseif($leaveCode === 'ADOPT')
+                                <div><span class="fw-semibold">PAPA Ref No:</span> {{ $details['adopt_papa_ref'] ?? 'N/A' }}</div>
+                            @endif
+
+                            {{-- General Reason & Notes (Always print if available) --}}
+                            @if(!empty($details['reason']))
+                                <div class="mt-2 text-muted small">General Reason:</div>
+                                <div>{{ $details['reason'] }}</div>
+                            @endif
+
+                            @if(!empty($details['notes']))
+                                <div class="mt-2 text-muted small">Additional Notes:</div>
+                                <div>{{ $details['notes'] }}</div>
+                            @endif
+
+                            @if(empty($details))
+                                <span class="text-muted">No additional details provided.</span>
                             @endif
                         </div>
                     </div>

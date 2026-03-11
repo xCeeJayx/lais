@@ -50,7 +50,7 @@
             </a>
 
             <a class="lais-nav-link {{ $active('employee.leaves.index') }}" href="{{ route('employee.leaves.index') }}">
-                <i class="bi bi-clock-history"></i> My Leave History
+                <i class="bi bi-clock-history"></i> My Leaves
             </a>
         </div>
     @endif
