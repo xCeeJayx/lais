@@ -27,7 +27,7 @@
                 </a>
             @endif
             <a href="{{ route('employee.leaves.index') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to History
+                <i class="bi bi-arrow-left me-1"></i> Back to Leaves
             </a>
         </div>
     </div>

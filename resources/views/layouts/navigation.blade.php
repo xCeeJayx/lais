@@ -1,6 +1,6 @@
 <nav class="navbar navbar-expand-lg bg-white border-bottom">
   <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="{{ route('dashboard') }}">LAIS</a>
+    <a class="navbar-brand fw-bold" href="{{ route('dashboard') }}">LATS</a>
 
     <div class="ms-auto d-flex align-items-center gap-2">
       <span class="text-muted small d-none d-md-inline">{{ Auth::user()->email }}</span>

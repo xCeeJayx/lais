@@ -126,6 +126,25 @@ class LeaveController extends Controller
         $start_date = $dates->first()->toDateString();
         $end_date = $dates->last()->toDateString();
 
+        // ---------------------------------------------------------
+        // NEW: Check for overlapping existing leaves
+        // ---------------------------------------------------------
+        $overlappingLeave = LeaveApplication::where('employee_id', $user->employee->id)
+            ->whereNotIn('status', ['disapproved', 'cancelled', 'rejected']) // exclude inactive statuses
+            ->where(function ($query) use ($start_date, $end_date) {
+                // Standard logic to check if two date ranges overlap
+                $query->where('start_date', '<=', $end_date)
+                      ->where('end_date', '>=', $start_date);
+            })
+            ->first();
+
+        if ($overlappingLeave) {
+            return back()
+                ->withInput()
+                ->withErrors(['dates' => 'You already have an existing or pending leave application that overlaps with the selected dates.']);
+        }
+        // ---------------------------------------------------------
+
         // Normalize details booleans
         $details = $validated['details'] ?? [];
         $details['abroad'] = !empty($details['abroad']);

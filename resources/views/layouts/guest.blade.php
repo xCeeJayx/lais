@@ -41,7 +41,7 @@
                     style="height: 70px; width: auto; filter: drop-shadow(0px 0px 5px rgba(255,255,255,0.8));">
                 <div style="text-shadow: 0px 0px 10px rgba(255,255,255,0.9);">
                     <div class="h3 mb-0 fw-bold text-dark" >DENR-CAR</div>
-                    <div class="h6 text-dark fw-bold">Leave Application Information System</div>
+                    <div class="h6 text-dark fw-bold">Leave Application Tracking System</div>
                 </div>
             </div>
             <div class="row g-0 align-items-stretch">
@@ -82,7 +82,7 @@
                     {{-- Mobile Logo (Only shows on small screens) --}}
                     <div class="d-lg-none text-center mb-4">
                         <img src="{{ asset('images/denr_logo.png') }}" alt="DENR Logo" style="height: 70px; margin-bottom: 10px;">
-                        <div class="fw-bold fs-4 text-dark">DENR LAIS</div>
+                        <div class="fw-bold fs-4 text-dark">DENR LATS</div>
                     </div>
 
                     {{-- Form Content Injected Here --}}
@@ -91,7 +91,7 @@
                     </div>
 
                     <div class="text-center text-muted small mt-5 fw-semibold">
-                        © {{ date('Y') }} LAIS • DENR CAR
+                        © {{ date('Y') }} LATS • DENR CAR
                     </div>
 
                 </div>

@@ -26,7 +26,7 @@
             <div class="d-flex flex-column" style="line-height: 1;">
                 <span class="fw-bold" style="font-size: 1.1rem;">DENR</span>
             </div>
-            <span class="fw-bold badge text-bg-light border" style="font-size: 1rem;">LAIS</span>
+            <span class="fw-bold badge text-bg-light border" style="font-size: 1rem;">LATS</span>
         </a>
 
         <div class="ms-auto d-flex align-items-center gap-2">
@@ -71,7 +71,7 @@
            alt="DENR Logo"
            style="height: 40px; width: auto;">
       <div>
-        <div class="fw-bold">LAIS</div>
+        <div class="fw-bold">LATS</div>
         <div class="text-muted small">Navigation</div>
       </div>
     </div>

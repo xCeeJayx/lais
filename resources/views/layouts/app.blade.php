@@ -45,7 +45,7 @@
 
                 <footer class="lais-footer">
                     <div class="text-muted small">
-                        © {{ date('Y') }} LAIS • DENR Leave Application Information System
+                        © {{ date('Y') }} LATS • DENR Leave Application Tracking System
                     </div>
                 </footer>
             </main>

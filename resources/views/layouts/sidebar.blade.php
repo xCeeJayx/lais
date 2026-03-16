@@ -14,7 +14,7 @@
 @endphp
 
 <div class="p-3">
-    <div class="fw-bold mb-2">LAIS</div>
+    <div class="fw-bold mb-2">LATS</div>
     <div class="text-muted small mb-3">
         {{ $user->name }}
         <div class="mt-1">

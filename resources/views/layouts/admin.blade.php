@@ -42,7 +42,7 @@
         <i class="bi bi-shield-check"></i>
       </div>
       <div>
-        <div class="fw-bold">LAIS</div>
+        <div class="fw-bold">LATS</div>
         <div class="text-muted small">Admin Panel</div>
       </div>
     </div>
