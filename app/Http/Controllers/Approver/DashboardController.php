@@ -59,11 +59,15 @@ class DashboardController extends Controller
             ->whereIn('action', ['approved', 'disapproved', 'returned'])
             ->count();
 
+        // ---------------------------------------------------------
+        // NEW: Demographic stats scoped to Approver's Office
+        // ---------------------------------------------------------
         $stats = [
-            'pending' => $pendingCount,
+            'pending'   => $pendingCount,
             'processed' => $processedCount,
-            'male'   => \App\Models\Employee::where('sex', 'M')->count(),
-            'female' => \App\Models\Employee::where('sex', 'F')->count(),
+            'workforce' => \App\Models\Employee::where('office_id', $officeId)->count(),
+            'male'      => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'M')->count(),
+            'female'    => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'F')->count(),
         ];
 
         // ---------------------------------------------------------
