@@ -118,8 +118,8 @@ class LeaveActionController extends Controller
 
         DB::transaction(function () use ($request, $leave, $user, $action, $remarks) {
 
-            // NEW: If Chief Personnel, save the Leave Credits Certification Details
-            if ($user->hasRole('approver_chief_personnel')) {
+            // Personnel Leave Credits Certification Details
+            if ($user->hasRole('approver_personnel')) {
                 $details = $leave->details_json ?? [];
 
                 $fieldsToSave = [
@@ -195,5 +195,48 @@ class LeaveActionController extends Controller
             $leaveDivision = $leave->employee()->value('division_id');
             if ($leaveDivision !== $user->employee->division_id) abort(403, 'Division mismatch.');
         }
+    }
+
+    public function processCancellation(Request $request, int $id)
+    {
+        $request->validate(['cancellation_action' => 'required|in:approved,rejected']);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        if (!$user->hasRole('approver_chief_personnel')) {
+            abort(403, 'Only Chief Personnel can process cancellations.');
+        }
+
+        $leave = LeaveApplication::findOrFail($id);
+
+        if ($leave->cancellation_status !== 'pending') {
+            return back()->withErrors(['message' => 'No pending cancellation request.']);
+        }
+
+        $actionWord = '';
+
+        if ($request->input('cancellation_action') === 'approved') {
+            $leave->cancellation_status = 'approved';
+            $leave->status = 'cancelled';
+            $actionWord = 'Approved Cancellation';
+        } else {
+            $leave->cancellation_status = 'rejected';
+            $actionWord = 'Rejected Cancellation';
+        }
+
+        $leave->save();
+
+        // NEW: Record this specific action into the Action History (LeaveApprovals)
+        LeaveApproval::create([
+            'leave_application_id' => $leave->id,
+            'step_order' => $leave->current_step_order,
+            'approver_user_id' => $user->id,
+            'action' => $actionWord,
+            'remarks' => 'Processed employee cancellation request.',
+            'acted_at' => \Carbon\Carbon::now(),
+        ]);
+
+        return redirect()->route('approver.inbox')->with('status', 'Cancellation request processed successfully.');
     }
 }

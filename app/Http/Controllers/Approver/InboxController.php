@@ -31,29 +31,36 @@ class InboxController extends Controller
             ]);
         }
 
-        // 2. Start Query
+        // 2 & 3. Start Query & Advanced Step/Division Restriction
+        $divisionId = $user->employee?->division_id;
+
         $query = LeaveApplication::query()
             ->with(['employee.user', 'employee.division', 'leaveType'])
             ->where('office_id', $officeId)
-            ->where('status', 'pending');
+            ->where(function ($q) use ($myStepOrders, $user, $divisionId) {
 
-        // 3. FIXED: Advanced Step & Division Restriction
-        $divisionId = $user->employee?->division_id;
+                // A: Normal Pending Approvals
+                $q->where(function ($pendingQ) use ($myStepOrders, $user, $divisionId) {
+                    $pendingQ->where('status', 'pending')
+                             ->where(function ($stepQ) use ($myStepOrders, $user, $divisionId) {
+                                 foreach ($myStepOrders as $step) {
+                                     if ($step == 1 && $user->hasRole('approver_division_chief')) {
+                                         $stepQ->orWhere(function ($subQ) use ($step, $divisionId) {
+                                             $subQ->where('current_step_order', $step)
+                                                  ->whereHas('employee', fn($eq) => $eq->where('division_id', $divisionId));
+                                         });
+                                     } else {
+                                         $stepQ->orWhere('current_step_order', $step);
+                                     }
+                                 }
+                             });
+                });
 
-        $query->where(function ($q) use ($myStepOrders, $user, $divisionId) {
-            foreach ($myStepOrders as $step) {
-                // If this is Step 1 and the user is the Division Chief, lock it to their division
-                if ($step == 1 && $user->hasRole('approver_division_chief')) {
-                    $q->orWhere(function ($subQuery) use ($step, $divisionId) {
-                        $subQuery->where('current_step_order', $step)
-                                 ->whereHas('employee', fn($empQuery) => $empQuery->where('division_id', $divisionId));
-                    });
-                } else {
-                    // For all other steps (Personnel, ARD), they can see all divisions in the office
-                    $q->orWhere('current_step_order', $step);
+                // B: Cancellation Requests (ONLY Chief Personnel sees these)
+                if ($user->hasRole('approver_chief_personnel')) {
+                    $q->orWhere('cancellation_status', 'pending');
                 }
-            }
-        });
+            });
 
         // 4. Filter by Division (From Dropdown)
         if ($request->filled('division_id')) {

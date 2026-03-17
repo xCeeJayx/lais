@@ -282,4 +282,22 @@ class LeaveController extends Controller
             'required_docs' => $requiredDocs,
         ]);
     }
+
+    public function requestCancellation(Request $request, int $id)
+    {
+        $request->validate(['cancellation_reason' => 'required|string|max:1000']);
+        $user = $request->user()->loadMissing('employee');
+
+        $leave = LeaveApplication::where('employee_id', $user->employee->id)->findOrFail($id);
+
+        if ($leave->status === 'cancelled' || $leave->cancellation_status === 'pending') {
+            return back()->withErrors(['cancellation_reason' => 'Cancellation already requested or processed.']);
+        }
+
+        $leave->cancellation_status = 'pending';
+        $leave->cancellation_reason = $request->input('cancellation_reason');
+        $leave->save();
+
+        return back()->with('status', 'Cancellation request submitted to Chief Personnel.');
+    }
 }

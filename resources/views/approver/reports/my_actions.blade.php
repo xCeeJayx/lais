@@ -104,10 +104,13 @@
                             </td>
                             <td>
                                 @php
-                                    $actionClass = match($row->action) {
-                                        'approved' => 'success',
-                                        'disapproved' => 'danger',
-                                        'returned' => 'info',
+                                    $act = strtolower($row->action);
+                                    $actionClass = match(true) {
+                                        $act === 'approved' => 'success',
+                                        $act === 'disapproved' => 'danger',
+                                        $act === 'returned' => 'info',
+                                        str_contains($act, 'approved cancellation') => 'secondary', // Grey badge
+                                        str_contains($act, 'rejected cancellation') => 'warning text-dark', // Yellow badge
                                         default => 'secondary'
                                     };
                                 @endphp

@@ -19,6 +19,13 @@
         </div>
 
         <div class="d-flex gap-2">
+            @if(in_array($leave->status, ['pending', 'approved']) && $leave->cancellation_status !== 'pending')
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+                    <i class="bi bi-x-circle me-1"></i> Request Cancellation
+                </button>
+            @elseif($leave->cancellation_status === 'pending')
+                <span class="badge bg-warning text-dark d-flex align-items-center"><i class="bi bi-hourglass-split me-1"></i> Cancellation Pending</span>
+            @endif
             @if(in_array($leave->status, ['pending','approved','disapproved','returned'], true))
                 <a class="btn btn-outline-primary"
                     href="{{ route('employee.leaves.form6.pdf', $leave->id) }}"
@@ -315,6 +322,32 @@
                             @endforeach
                         </div>
                     @endif
+                </div>
+            </div>
+
+            {{-- Request Cancelation --}}
+            <div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <form action="{{ route('employee.leaves.cancel', $leave->id) }}" method="POST">
+                        @csrf
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">Request Leave Cancellation</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to request cancellation for this leave? This request will be sent to the Chief Personnel for approval.</p>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Reason for Cancellation</label>
+                                    <textarea name="cancellation_reason" class="form-control" rows="3" required placeholder="Please provide a valid reason..."></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-danger">Submit Request</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
 

@@ -73,9 +73,22 @@
                 @error('reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
+              {{-- NEW: 30 Calendar Days / Terminal Leave Clearance Alert --}}
+              <div class="col-12 d-none" id="clearanceAlert">
+                <div class="alert alert-warning d-flex align-items-start mb-0 shadow-sm border-warning">
+                  <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-warning"></i>
+                  <div>
+                    <h6 class="fw-bold mb-1">Clearance Required!</h6>
+                    <p class="mb-0 small">
+                      For leave of absence for <strong>thirty (30) calendar days or more</strong> and <strong>terminal leave</strong>, application shall be accompanied by a clearance from money, property and work-related accountabilities (pursuant to CSC Memorandum Circular No. 2, s. 1985).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {{-- Required Docs --}}
               <div class="col-6">
-                <div class="border rounded p-3 bg-light">
+                <div class="border rounded p-3 bg-light h-100">
                   <div class="d-flex align-items-center justify-content-between">
                     <div class="fw-semibold">Required Documents</div>
                     <span class="badge text-bg-secondary" id="reqDocsStatus">Waiting…</span>
@@ -90,12 +103,12 @@
               </div>
 
               {{-- Attachments --}}
-              <div class="card shadow-sm mb-1 col-6">
-                <div class="card-header bg-white">
+              <div class="card shadow-sm col-6 border-0 p-0">
+                <div class="card-header bg-white border rounded-top">
                     <div class="fw-semibold">Attachments</div>
                     <div class="small text-muted">Upload supporting documents (multiple allowed).</div>
                 </div>
-                <div class="card-body">
+                <div class="card-body border border-top-0 rounded-bottom">
                     <input type="file" class="form-control @error('attachments') is-invalid @enderror"
                         name="attachments[]" id="attachments" multiple>
                     @error('attachments') <div class="invalid-feedback">{{ $message }}</div> @enderror
@@ -108,7 +121,6 @@
                     </div>
                 </div>
               </div>
-
 
             </div>
           </div>
@@ -416,6 +428,35 @@
   const $days = $('#working_days_requested');
   const $reqList = $('#requiredDocsList');
   const $reqStatus = $('#reqDocsStatus');
+  const $clearanceAlert = $('#clearanceAlert');
+
+  // NEW: Function to check if the 30 calendar days or Terminal Leave rule applies
+  function checkClearanceRule(selectedDates) {
+      const code = selectedLeaveCode();
+      let is30CalendarDays = false;
+
+      // Check if dates span 30 or more calendar days
+      if (selectedDates && selectedDates.length > 0) {
+          const sortedDates = [...selectedDates].sort((a, b) => a - b);
+          const firstDate = sortedDates[0];
+          const lastDate = sortedDates[sortedDates.length - 1];
+
+          // Calculate calendar day difference
+          const diffTime = Math.abs(lastDate - firstDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+          if (diffDays >= 30) {
+              is30CalendarDays = true;
+          }
+      }
+
+      // Show alert if Terminal Leave OR >= 30 calendar days
+      if (code === 'TL' || is30CalendarDays) {
+          $clearanceAlert.removeClass('d-none');
+      } else {
+          $clearanceAlert.addClass('d-none');
+      }
+  }
 
   // Init Flatpickr exactly like the screenshot design
   const fp = flatpickr("#leave_dates", {
@@ -438,7 +479,8 @@
               $('#autoDaysHint').text('Please select valid weekday dates first.');
           }
 
-          // Trigger required docs update immediately after calculating the days
+          // Trigger clearance check and required docs update immediately
+          checkClearanceRule(selectedDates);
           refreshRequiredDocs();
       }
   });
@@ -556,6 +598,7 @@
     setTimeout(function() {
       hideAllSections();
       fp.clear(); // Clear the calendar
+      checkClearanceRule([]); // Reset alert
       refreshRequiredDocs();
       dt.items.clear();
       fileInput.value = '';
@@ -566,6 +609,7 @@
   // Events
   $leaveType.on('change', function() {
     showHideSections();
+    checkClearanceRule(fp.selectedDates); // Check clearance on type change
     refreshRequiredDocs();
   });
 

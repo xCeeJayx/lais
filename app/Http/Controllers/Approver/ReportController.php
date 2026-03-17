@@ -24,8 +24,10 @@ class ReportController extends Controller
         $user = $request->user()->loadMissing('employee');
         [$from, $to] = $this->monthRange($request);
 
-        // approved + disapproved + returned by default (all decisions)
-        $actions = (array) $request->input('action', ['approved','disapproved','returned']);
+        // CHANGED: Added 'Approved Cancellation' and 'Rejected Cancellation' to the default list
+        $actions = (array) $request->input('action', [
+            'approved', 'disapproved', 'returned', 'Approved Cancellation', 'Rejected Cancellation'
+        ]);
 
         $rows = LeaveApproval::with([
                 'leave.employee.user',
@@ -45,7 +47,11 @@ class ReportController extends Controller
     {
         $user = $request->user();
         [$from, $to] = $this->monthRange($request);
-        $actions = (array) $request->input('action', ['approved','disapproved','returned']);
+
+        // CHANGED: Added 'Approved Cancellation' and 'Rejected Cancellation'
+        $actions = (array) $request->input('action', [
+            'approved', 'disapproved', 'returned', 'Approved Cancellation', 'Rejected Cancellation'
+        ]);
 
         return Excel::download(
             new ApproverMyActionsExport($user->id, $from, $to, $actions),
@@ -57,7 +63,11 @@ class ReportController extends Controller
     {
         $user = $request->user();
         [$from, $to] = $this->monthRange($request);
-        $actions = (array) $request->input('action', ['approved','disapproved','returned']);
+
+        // CHANGED: Added 'Approved Cancellation' and 'Rejected Cancellation'
+        $actions = (array) $request->input('action', [
+            'approved', 'disapproved', 'returned', 'Approved Cancellation', 'Rejected Cancellation'
+        ]);
 
         $rows = LeaveApproval::with([
                 'leave.employee.user',

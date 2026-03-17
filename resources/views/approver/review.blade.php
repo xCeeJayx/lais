@@ -28,7 +28,7 @@
             <div class="card shadow-sm mb-4 border-0">
                 <div class="card-header bg-white py-3 fw-bold d-flex justify-content-between">
                     <span><i class="bi bi-file-text me-2 text-primary"></i> Application Details</span>
-                    <span class="badge {{ $leave->status === 'approved' ? 'bg-success' : ($leave->status === 'pending' ? 'bg-warning text-dark' : 'bg-danger') }}">
+                    <span class="badge {{ match($leave->status) { 'approved' => 'bg-success', 'pending' => 'bg-warning text-dark', 'returned' => 'bg-info text-dark', 'cancelled' => 'bg-secondary', default => 'bg-danger' } }}">
                         {{ strtoupper($leave->status) }}
                     </span>
                 </div>
@@ -211,18 +211,30 @@
                 </div>
             </div>
 
-            {{-- 7.A CERTIFICATION OF LEAVE CREDITS (For Chief Personnel Only) --}}
-            @if(auth()->user()->hasRole('approver_chief_personnel'))
+{{-- SETUP ROLES FOR VIEWING/EDITING --}}
+            @php
+                $isPersonnel = auth()->user()->hasRole('approver_personnel');
+                $showCredits = $isPersonnel || auth()->user()->hasRole('approver_chief_personnel') || auth()->user()->hasRole('approver_ard_ms');
+            @endphp
+
+            {{-- OPEN MASTER FORM FOR ACTIONS --}}
+            @if($canAction)
+                <form action="{{ route('approver.leaves.action', $leave->id) }}" method="POST" id="actionForm">
+                    @csrf
+            @endif
+
+            {{-- 7.A CERTIFICATION OF LEAVE CREDITS --}}
+            @if($showCredits)
                 <div class="card shadow-sm mb-4 border-primary">
-                    <div class="card-header bg-primary text-white fw-bold">
+                    <div class="card-header bg-primary text-black fw-bold">
                         <i class="bi bi-file-earmark-check me-2"></i> 7.A CERTIFICATION OF LEAVE CREDITS
                     </div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Please fill up the employee's leave credits. This will reflect directly on the final CS Form 6.</p>
 
-                        {{-- The Action Form must wrap this so it submits to the backend --}}
-                        <form action="{{ route('approver.leaves.action', $leave->id) }}" method="POST" id="actionForm">
-                            @csrf
+                        @if($isPersonnel && $canAction)
+                            {{-- EDITABLE FORM (For Personnel Only) --}}
+                            <p class="text-muted small mb-3">Please fill up the employee's leave credits. This will reflect directly on the final CS Form 6.</p>
+
                             <div class="row mb-3">
                                 <div class="col-md-4">
                                     <label class="form-label fw-semibold">As of (Month/Year)</label>
@@ -272,61 +284,111 @@
                                     calculateVL();
                                     calculateSL();
 
-                                    // Add listeners to 'less' fields in case they manually override it
                                     document.getElementById('vl_less').addEventListener('input', calculateVL);
                                     document.getElementById('sl_less').addEventListener('input', calculateSL);
                                 });
                             </script>
+
+                        @else
+                            {{-- READ-ONLY VIEW (For Chief Personnel & ARD) --}}
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold text-muted small mb-1">As of (Month/Year)</label>
+                                    <div class="fw-bold">{{ $leave->getDetail('credits_as_of') ?? 'Not yet provided' }}</div>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered text-center align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="text-start">Leave Type</th>
+                                            <th>Total Earned</th>
+                                            <th>Less this application</th>
+                                            <th>Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-start fw-semibold">Vacation Leave</td>
+                                            <td>{{ number_format((float)($leave->getDetail('vl_earned') ?? 0), 2) }}</td>
+                                            <td>{{ number_format((float)($leave->getDetail('vl_less') ?? 0), 2) }}</td>
+                                            <td class="bg-light fw-bold text-primary">{{ number_format((float)($leave->getDetail('vl_balance') ?? 0), 2) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-start fw-semibold">Sick Leave</td>
+                                            <td>{{ number_format((float)($leave->getDetail('sl_earned') ?? 0), 2) }}</td>
+                                            <td>{{ number_format((float)($leave->getDetail('sl_less') ?? 0), 2) }}</td>
+                                            <td class="bg-light fw-bold text-primary">{{ number_format((float)($leave->getDetail('sl_balance') ?? 0), 2) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
             @endif
 
-            {{-- ACTION BOX --}}
-            @if($canAction)
-                <div class="card shadow-sm border-0 bg-light">
+            {{-- CANCELLATION REQUEST BOX (Only Chief Personnel sees this if pending) --}}
+            @if($leave->cancellation_status === 'pending' && auth()->user()->hasRole('approver_chief_personnel'))
+                <div class="card shadow-sm border-danger mb-4">
+                    <div class="card-header bg-danger text-black fw-bold">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> Cancellation Request Pending
+                    </div>
                     <div class="card-body">
-                        <h5 class="mb-3 fw-bold"><i class="bi bi-shield-check text-success me-2"></i> Your Action Required</h5>
+                        <p class="mb-3"><strong>Reason provided by employee:</strong> <br> "{{ $leave->cancellation_reason }}"</p>
 
-                        {{-- If not Chief Personnel, we need to open the form tag here --}}
-                        @if(!auth()->user()->hasRole('approver_chief_personnel'))
-                            <form action="{{ route('approver.leaves.action', $leave->id) }}" method="POST">
-                                @csrf
-                        @endif
-
-                            {{-- HIDE Remarks if Chief Personnel --}}
-                            @if(!auth()->user()->hasRole('approver_chief_personnel'))
-                                <div class="mb-3">
-                                    <label class="form-label fw-semibold">Remarks / Comments (Required if Returning/Disapproving)</label>
-                                    <textarea name="remarks" class="form-control" rows="3" placeholder="Enter your remarks here..."></textarea>
-                                </div>
-                            @else
-                                {{-- Hidden remarks to bypass controller validation if they Return/Disapprove --}}
-                                <input type="hidden" name="remarks" value="Processed by Chief Personnel">
-                            @endif
-
+                        <form action="{{ route('approver.leaves.processCancellation', $leave->id) }}" method="POST">
+                            @csrf
                             <div class="d-flex gap-2">
-                                <button type="submit" name="action" value="approved" class="btn btn-success px-4 fw-bold">
-                                    <i class="bi bi-check-circle me-1"></i> Approve
+                                <button type="submit" name="cancellation_action" value="approved" class="btn btn-danger px-4 fw-bold">
+                                    <i class="bi bi-check-circle me-1"></i> Approve Cancellation
                                 </button>
-                                <button type="submit" name="action" value="returned" class="btn btn-warning px-4 fw-bold">
-                                    <i class="bi bi-arrow-return-left me-1"></i> Return
-                                </button>
-                                <button type="submit" name="action" value="disapproved" class="btn btn-danger px-4 fw-bold">
-                                    <i class="bi bi-x-circle me-1"></i> Disapprove
+                                <button type="submit" name="cancellation_action" value="rejected" class="btn btn-secondary px-4 fw-bold">
+                                    <i class="bi bi-x-circle me-1"></i> Reject Cancellation
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
+            @endif
+
+            {{-- ACTION BOX --}}
+            @if($canAction)
+                <div class="card shadow-sm border-0 bg-light mb-4">
+                    <div class="card-body">
+                        <h5 class="mb-3 fw-bold"><i class="bi bi-shield-check text-success me-2"></i> Your Action Required</h5>
+
+                        {{-- HIDE Remarks if Personnel (they are just certifying credits) --}}
+                        @if(!$isPersonnel)
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Remarks / Comments (Required if Returning/Disapproving)</label>
+                                <textarea name="remarks" class="form-control" rows="3" placeholder="Enter your remarks here..."></textarea>
+                            </div>
+                        @else
+                            <input type="hidden" name="remarks" value="Leave credits certified by Personnel">
+                        @endif
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="action" value="approved" class="btn btn-success px-4 fw-bold">
+                                <i class="bi bi-check-circle me-1"></i> Approve
+                            </button>
+                            <button type="submit" name="action" value="returned" class="btn btn-warning px-4 fw-bold">
+                                <i class="bi bi-arrow-return-left me-1"></i> Return
+                            </button>
+                            <button type="submit" name="action" value="disapproved" class="btn btn-danger px-4 fw-bold">
+                                <i class="bi bi-x-circle me-1"></i> Disapprove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                </form> {{-- CLOSE MASTER FORM --}}
             @elseif($leave->status === 'pending')
-                <div class="alert alert-info">
+                <div class="alert alert-info mb-4">
                     <i class="bi bi-info-circle me-2"></i> Waiting for another approver to process this step.
                 </div>
             @endif
 
-            {{-- Close the Chief Personnel card div if opened --}}
-            @if(auth()->user()->hasRole('approver_chief_personnel'))
-                    </div>
-                </div>
-            @endif
         </div>
 
         {{-- RIGHT COLUMN: Employee Details, Attachments & Timeline --}}
@@ -365,7 +427,7 @@
                                 <li class="mb-3">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <span class="fw-semibold">{{ $hist->leaveType->name ?? 'Leave' }}</span>
-                                        <span class="badge {{ $hist->status === 'approved' ? 'bg-success' : ($hist->status === 'pending' ? 'bg-warning text-dark': ($hist->status === 'returned' ? 'bg-info text-dark' : 'bg-danger')) }}" style="font-size: 0.65rem;">
+                                        <span class="badge {{ match($hist->status) { 'approved' => 'bg-success', 'pending' => 'bg-warning text-dark', 'returned' => 'bg-info text-dark', 'cancelled' => 'bg-secondary', default => 'bg-danger' } }}" style="font-size: 0.65rem;">
                                             {{ strtoupper($hist->status) }}
                                         </span>
                                     </div>

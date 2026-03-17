@@ -67,6 +67,7 @@ Route::middleware(['auth'])->group(function () {
         // Check for any approver role
         if ($user->roles->pluck('key')->intersect([
             'approver_division_chief',
+            'approver_personnel',
             'approver_chief_personnel',
             'approver_ard_ms'
         ])->isNotEmpty()) {
@@ -98,6 +99,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/leaves', [EmployeeLeaveController::class, 'store'])->name('leaves.store');
         Route::get('/leaves/{id}', [EmployeeLeaveController::class, 'show'])->name('leaves.show');
         Route::post('/leaves/required-docs', [EmployeeLeaveController::class, 'requiredDocs'])->name('leaves.requiredDocs');
+        Route::post('/leaves/{id}/cancel', [EmployeeLeaveController::class, 'requestCancellation'])->name('leaves.cancel');
 
         // PROFILE
         Route::get('/profile-info', [EmployeeProfileController::class, 'show'])->name('profile.show');
@@ -117,7 +119,7 @@ Route::middleware(['auth'])->group(function () {
     | APPROVER
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:approver_division_chief,approver_chief_personnel,approver_ard_ms')
+    Route::middleware('role:approver_division_chief,approver_personnel,approver_chief_personnel,approver_ard_ms')
         ->prefix('approver')->name('approver.')->group(function () {
 
             Route::get('/dashboard', [ApproverDashboardController::class, 'index'])->name('dashboard');
@@ -125,6 +127,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/inbox', [ApproverInboxController::class, 'index'])->name('inbox');
             Route::get('/leaves/{id}', [ApproverLeaveActionController::class, 'show'])->name('leaves.show');
             Route::post('/leaves/{id}/action', [ApproverLeaveActionController::class, 'action'])->name('leaves.action');
+            Route::post('/leaves/{id}/process-cancellation', [ApproverLeaveActionController::class, 'processCancellation'])->name('leaves.processCancellation');
 
             Route::get('/reports', [ApproverReportController::class, 'index'])->name('reports.index');
             Route::get('/reports/my-actions', [ApproverReportController::class, 'myActions'])->name('reports.myActions');

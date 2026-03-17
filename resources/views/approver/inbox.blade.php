@@ -63,7 +63,13 @@
                                 </td>
                                 <td>{{ optional($leave->employee->division)->name ?? '-' }}</td>
                                 <td>{{ $leave->leaveType->name }}</td>
-                                <td><span class="badge bg-warning text-dark">PENDING</span></td>
+                                <td>
+                                    @if($leave->cancellation_status === 'pending')
+                                        <span class="badge bg-danger shadow-sm"><i class="bi bi-exclamation-octagon-fill me-1"></i> CANCELLATION REQUEST</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark">PENDING</span>
+                                    @endif
+                                </td>
                                 <td class="text-end">
                                     <a class="btn btn-sm btn-primary" href="{{ route('approver.leaves.show', $leave->id) }}">
                                         Review
