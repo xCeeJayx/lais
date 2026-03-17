@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\LeaveApplication;
+use App\Models\ApprovalStep;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -16,41 +17,40 @@ class LeaveStatusUpdated extends Mailable
     public $leave;
     public $remarks;
     public $approverName;
+    public $totalSteps;
+    public $customStatus;
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct(LeaveApplication $leave, $remarks = null, $approverName = null)
+    public function __construct(LeaveApplication $leave, $remarks = null, $approverName = null, $customStatus = null)
     {
         $this->leave = $leave;
         $this->remarks = $remarks;
         $this->approverName = $approverName;
+        $this->customStatus = $customStatus;
+
+        $this->totalSteps = ApprovalStep::where('office_id', $leave->office_id)->count();
     }
 
-    /**
-     * Get the message envelope.
-     */
     public function envelope(): Envelope
     {
-        $status = strtoupper($this->leave->status);
+        // Use custom status if provided, otherwise use the database status
+        $status = $this->customStatus ?? strtoupper($this->leave->status);
+
+        if ($status === 'PENDING' && !$this->customStatus) {
+            $status = 'IN PROGRESS';
+        }
+
         return new Envelope(
             subject: "Leave Application Update: #{$this->leave->id} - {$status}",
         );
     }
 
-    /**
-     * Get the message content definition.
-     */
     public function content(): Content
     {
         return new Content(
-            view: 'emails.leave_status_updated', // We will create this view next
+            view: 'emails.leave_status_updated',
         );
     }
 
-    /**
-     * Get the attachments for the message.
-     */
     public function attachments(): array
     {
         return [];

@@ -228,6 +228,7 @@ class LeaveActionController extends Controller
         $leave->save();
 
         // NEW: Record this specific action into the Action History (LeaveApprovals)
+        // NEW: Record this specific action into the Action History
         LeaveApproval::create([
             'leave_application_id' => $leave->id,
             'step_order' => $leave->current_step_order,
@@ -236,6 +237,16 @@ class LeaveActionController extends Controller
             'remarks' => 'Processed employee cancellation request.',
             'acted_at' => \Carbon\Carbon::now(),
         ]);
+
+        // Send email to the employee with the result of the cancellation
+        try {
+            $statusLabel = $actionWord === 'Approved Cancellation' ? 'CANCELLED' : 'CANCELLATION REJECTED';
+            \Illuminate\Support\Facades\Mail::to($leave->employee->user->email)->send(
+                new \App\Mail\LeaveStatusUpdated($leave, 'The Personnel has reviewed and processed your cancellation request.', $user->first_name . ' ' . $user->last_name, $statusLabel)
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Cancellation process email failed: ' . $e->getMessage());
+        }
 
         return redirect()->route('approver.inbox')->with('status', 'Cancellation request processed successfully.');
     }

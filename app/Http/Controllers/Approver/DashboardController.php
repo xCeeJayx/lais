@@ -55,19 +55,31 @@ class DashboardController extends Controller
         // ---------------------------------------------------------
         // 2. Calculate PROCESSED (Count your specific actions)
         // ---------------------------------------------------------
+        // CHANGED: Added cancellation actions so they count towards the total
         $processedCount = LeaveApproval::where('approver_user_id', $user->id)
-            ->whereIn('action', ['approved', 'disapproved', 'returned'])
+            ->whereIn('action', ['approved', 'disapproved', 'returned', 'Approved Cancellation', 'Rejected Cancellation'])
             ->count();
 
         // ---------------------------------------------------------
-        // NEW: Demographic stats scoped to Approver's Office
+        // 2.5 Calculate CANCELLATION REQUESTS (Personnel Only)
+        // ---------------------------------------------------------
+        $cancellationCount = 0;
+        if ($officeId && $user->hasRole('approver_personnel')) {
+            $cancellationCount = LeaveApplication::where('office_id', $officeId)
+                ->where('cancellation_status', 'pending')
+                ->count();
+        }
+
+        // ---------------------------------------------------------
+        // Demographic stats scoped to Approver's Office
         // ---------------------------------------------------------
         $stats = [
-            'pending'   => $pendingCount,
-            'processed' => $processedCount,
-            'workforce' => \App\Models\Employee::where('office_id', $officeId)->count(),
-            'male'      => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'M')->count(),
-            'female'    => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'F')->count(),
+            'pending'       => $pendingCount,
+            'processed'     => $processedCount,
+            'cancellations' => $cancellationCount,
+            'workforce'     => \App\Models\Employee::where('office_id', $officeId)->count(),
+            'male'          => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'M')->count(),
+            'female'        => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'F')->count(),
         ];
 
         // ---------------------------------------------------------

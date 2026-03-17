@@ -10,7 +10,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
-use App\Models\{LeaveApplication, ApprovalStep};
+use App\Models\{LeaveApplication, ApprovalStep, User};
+use Illuminate\Support\Facades\Mail;
+use App\Mail\{LeaveActionRequired, LeaveStatusUpdated};
 
 class LeaveController extends Controller
 {
@@ -49,22 +51,19 @@ class LeaveController extends Controller
             'leaveType',
             'office',
             'attachments',
-            'approvals.approver', // make sure relationship exists
+            'approvals.approver',
             'employee.user',
         ])->findOrFail($id);
 
-        // All steps for this office
         $steps = ApprovalStep::where('office_id', $leave->office_id)
             ->orderBy('step_order')
             ->get();
 
-        // Index approvals by step_order (one per step)
         $approvalsByStep = $leave->approvals->keyBy('step_order');
 
         $timeline = $steps->map(function ($step) use ($leave, $approvalsByStep) {
             $ap = $approvalsByStep->get($step->step_order);
 
-            // If acted already (approved/returned/disapproved)
             if ($ap) {
                 return [
                     'step_order' => $step->step_order,
@@ -77,7 +76,6 @@ class LeaveController extends Controller
                 ];
             }
 
-            // Not acted yet
             $isCurrent = ((int)$leave->current_step_order === (int)$step->step_order);
 
             return [
@@ -102,7 +100,6 @@ class LeaveController extends Controller
             abort(403, 'No employee profile assigned.');
         }
 
-        // FIXED: Replaced start_date and end_date validation with 'dates'
         $validated = $request->validate([
             'leave_type_id' => 'required|exists:leave_types,id',
             'dates' => 'required|string',
@@ -116,7 +113,6 @@ class LeaveController extends Controller
 
         $leaveType = LeaveType::with('requiredDocuments')->findOrFail($validated['leave_type_id']);
 
-        // Convert the comma-separated string back into an array and sort it
         $datesArray = array_filter(array_map('trim', explode(',', $validated['dates'])));
         if (empty($datesArray)) {
             return back()->withInput()->withErrors(['dates' => 'Please select at least one date.']);
@@ -126,13 +122,9 @@ class LeaveController extends Controller
         $start_date = $dates->first()->toDateString();
         $end_date = $dates->last()->toDateString();
 
-        // ---------------------------------------------------------
-        // NEW: Check for overlapping existing leaves
-        // ---------------------------------------------------------
         $overlappingLeave = LeaveApplication::where('employee_id', $user->employee->id)
-            ->whereNotIn('status', ['disapproved', 'cancelled', 'rejected']) // exclude inactive statuses
+            ->whereNotIn('status', ['disapproved', 'cancelled', 'rejected'])
             ->where(function ($query) use ($start_date, $end_date) {
-                // Standard logic to check if two date ranges overlap
                 $query->where('start_date', '<=', $end_date)
                       ->where('end_date', '>=', $start_date);
             })
@@ -143,19 +135,16 @@ class LeaveController extends Controller
                 ->withInput()
                 ->withErrors(['dates' => 'You already have an existing or pending leave application that overlaps with the selected dates.']);
         }
-        // ---------------------------------------------------------
 
-        // Normalize details booleans
         $details = $validated['details'] ?? [];
         $details['abroad'] = !empty($details['abroad']);
         $details['no_consultation'] = !empty($details['no_consultation']);
         $details['reason'] = $validated['reason'];
-        $details['selected_dates'] = $dates->map->toDateString()->toArray(); // Save the exact dates
+        $details['selected_dates'] = $dates->map->toDateString()->toArray();
 
         $start = Carbon::parse($start_date)->startOfDay();
         $today = now()->startOfDay();
 
-        // Vacation Leave: 5 days in advance when possible
         if ($leaveType->code === 'VL') {
             $diff = $today->diffInDays($start, false);
             if ($diff < 5) {
@@ -165,7 +154,6 @@ class LeaveController extends Controller
             }
         }
 
-        // Sick Leave filed in advance: require attachment
         if ($leaveType->code === 'SL') {
             if ($start->isFuture() && !$request->hasFile('attachments')) {
                 return back()
@@ -174,7 +162,6 @@ class LeaveController extends Controller
             }
         }
 
-        // Required documents evaluator
         $payload = [
             'working_days_requested' => (float)$validated['working_days_requested'],
             'filed_in_advance' => $start->isFuture(),
@@ -183,7 +170,6 @@ class LeaveController extends Controller
 
         $requiredDocs = app(RequiredDocsEvaluator::class)->requiredDocsFor($leaveType, $payload);
 
-        // MVP: if any required docs exist, require at least one uploaded attachment
         if (!empty($requiredDocs) && !$request->hasFile('attachments')) {
             $names = collect($requiredDocs)->pluck('name')->join(', ');
             return back()
@@ -210,7 +196,6 @@ class LeaveController extends Controller
                 'commutation' => $validated['commutation'] ?? null,
             ]);
 
-            // Attachments (public disk)
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
                     if (!$file) continue;
@@ -231,17 +216,44 @@ class LeaveController extends Controller
             return $leave;
         });
 
+        // -------------------------------------------------------------
+        // NEW: NOTIFY THE FIRST APPROVER (STEP 1)
+        // -------------------------------------------------------------
+        try {
+            $step1 = ApprovalStep::where('office_id', $leave->office_id)->where('step_order', 1)->first();
+
+            if ($step1) {
+                $approversQuery = User::whereHas('roles', function($q) use ($step1) {
+                    $q->where('key', $step1->role_key);
+                })->whereHas('employee', function($q) use ($leave) {
+                    $q->where('office_id', $leave->office_id);
+                });
+
+                // If Step 1 is Division Chief, only alert their specific Division Chief
+                if ($step1->role_key === 'approver_division_chief') {
+                    $approversQuery->whereHas('employee', function($q) use ($leave) {
+                        $q->where('division_id', $leave->employee->division_id);
+                    });
+                }
+
+                $approvers = $approversQuery->get();
+                foreach ($approvers as $approver) {
+                    Mail::to($approver->email)->send(
+                        new LeaveActionRequired($leave, 'new_application')
+                    );
+                }
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Approver notification failed: ' . $e->getMessage());
+        }
+
         return redirect()
             ->route('employee.leaves.show', $leave->id)
             ->with('status', 'Leave application submitted.');
     }
 
-    /**
-     * AJAX endpoint used by the Apply Leave form to show required docs hint.
-     */
     public function requiredDocs(Request $request): JsonResponse
     {
-        // FIXED: Replaced start_date validation with 'dates'
         $request->validate([
             'leave_type_id' => 'required|exists:leave_types,id',
             'working_days_requested' => 'nullable|numeric|min:0.5|max:365',
@@ -257,7 +269,6 @@ class LeaveController extends Controller
 
         $filedInAdvance = false;
         if ($request->filled('dates')) {
-            // Check based on the earliest selected date
             $datesArray = array_filter(array_map('trim', explode(',', $request->dates)));
             if (count($datesArray) > 0) {
                 $dates = collect($datesArray)->map(fn($d) => \Carbon\Carbon::parse($d))->sort();
@@ -297,6 +308,34 @@ class LeaveController extends Controller
         $leave->cancellation_status = 'pending';
         $leave->cancellation_reason = $request->input('cancellation_reason');
         $leave->save();
+
+        // Email to EMPLOYEE (Confirmation)
+        try {
+            Mail::to($user->email)->send(
+                new LeaveStatusUpdated($leave, 'Reason provided: ' . $request->input('cancellation_reason'), null, 'CANCELLATION REQUESTED')
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Cancellation request email to employee failed: ' . $e->getMessage());
+        }
+
+        // -------------------------------------------------------------
+        // NEW: NOTIFY PERSONNEL ABOUT THE CANCELLATION REQUEST
+        // -------------------------------------------------------------
+        try {
+            $personnelApprovers = User::whereHas('roles', function($q) {
+                $q->where('key', 'approver_personnel');
+            })->whereHas('employee', function($q) use ($leave) {
+                $q->where('office_id', $leave->office_id);
+            })->get();
+
+            foreach ($personnelApprovers as $approver) {
+                Mail::to($approver->email)->send(
+                    new LeaveActionRequired($leave, 'cancellation_request', $request->input('cancellation_reason'))
+                );
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Cancellation request email to approver failed: ' . $e->getMessage());
+        }
 
         return back()->with('status', 'Cancellation request submitted to Personnel.');
     }

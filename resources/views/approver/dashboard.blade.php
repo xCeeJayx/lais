@@ -3,9 +3,16 @@
 <div class="container py-4">
     <h3 class="mb-4">Approver Dashboard</h3>
 
-    {{-- STATS ROW --}}
+{{-- STATS ROW --}}
+    @php
+        // Determine column sizes based on role
+        $isPersonnel = auth()->user()->hasRole('approver_personnel');
+        $colClass = $isPersonnel ? 'col-md-3 col-sm-6' : 'col-md-4 col-sm-12';
+    @endphp
+
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
+        {{-- Normal Pending Requests --}}
+        <div class="{{ $colClass }}">
             <div class="card shadow-sm border-start border-4 border-warning h-100">
                 <div class="card-body d-flex align-items-center justify-content-between">
                     <div>
@@ -22,7 +29,28 @@
             </div>
         </div>
 
-        <div class="col-md-4">
+        {{-- NEW: Cancellation Requests (Visible ONLY to Personnel) --}}
+        @if($isPersonnel)
+        <div class="{{ $colClass }}">
+            <div class="card shadow-sm border-start border-4 border-danger h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Cancellations</div>
+                        <div class="fs-1 fw-bold text-dark">{{ $stats['cancellations'] }}</div>
+                    </div>
+                    <i class="bi bi-exclamation-octagon fs-1 text-danger"></i>
+                </div>
+                <div class="card-footer bg-white">
+                    <a href="{{ route('approver.inbox') }}" class="text-decoration-none small text-danger fw-bold">
+                        Review Requests <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Processed Total --}}
+        <div class="{{ $colClass }}">
             <div class="card shadow-sm border-start border-4 border-primary h-100">
                 <div class="card-body d-flex align-items-center justify-content-between">
                     <div>
@@ -40,7 +68,7 @@
         </div>
 
         {{-- Demographics for Approver --}}
-        <div class="col-md-4">
+        <div class="{{ $colClass }}">
             <div class="card shadow-sm border-start border-4 border-info h-100">
                 <div class="card-body">
                     <div class="text-muted small text-uppercase fw-bold mb-2">Workforce</div>
