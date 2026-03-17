@@ -56,8 +56,8 @@ class InboxController extends Controller
                              });
                 });
 
-                // B: Cancellation Requests (ONLY Chief Personnel sees these)
-                if ($user->hasRole('approver_chief_personnel')) {
+                // B: Cancellation Requests (ONLY Personnel sees these)
+                if ($user->hasRole('approver_personnel')) {
                     $q->orWhere('cancellation_status', 'pending');
                 }
             });

@@ -55,7 +55,7 @@
                      class="logo-profile">
 
                 <h2 style="margin: 0; font-size: 20px;">Application Status Update</h2>
-                <div style="font-size: 13px; opacity: 0.9;">Leave Application Information System</div>
+                <div style="font-size: 13px; opacity: 0.9;">Leave Application Tracking System</div>
             </div>
 
             <div class="content">

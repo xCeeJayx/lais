@@ -204,7 +204,7 @@ class LeaveActionController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (!$user->hasRole('approver_chief_personnel')) {
+        if (!$user->hasRole('approver_personnel')) {
             abort(403, 'Only Chief Personnel can process cancellations.');
         }
 

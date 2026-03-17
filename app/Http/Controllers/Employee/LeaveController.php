@@ -298,6 +298,6 @@ class LeaveController extends Controller
         $leave->cancellation_reason = $request->input('cancellation_reason');
         $leave->save();
 
-        return back()->with('status', 'Cancellation request submitted to Chief Personnel.');
+        return back()->with('status', 'Cancellation request submitted to Personnel.');
     }
 }

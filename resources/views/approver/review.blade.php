@@ -330,7 +330,7 @@
             @endif
 
             {{-- CANCELLATION REQUEST BOX (Only Chief Personnel sees this if pending) --}}
-            @if($leave->cancellation_status === 'pending' && auth()->user()->hasRole('approver_chief_personnel'))
+            @if($leave->cancellation_status === 'pending' && auth()->user()->hasRole('approver_personnel'))
                 <div class="card shadow-sm border-danger mb-4">
                     <div class="card-header bg-danger text-black fw-bold">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i> Cancellation Request Pending

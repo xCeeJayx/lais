@@ -336,7 +336,7 @@
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <p>Are you sure you want to request cancellation for this leave? This request will be sent to the Chief Personnel for approval.</p>
+                                <p>Are you sure you want to request cancellation for this leave? This request will be sent to the Personnel for approval.</p>
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Reason for Cancellation</label>
                                     <textarea name="cancellation_reason" class="form-control" rows="3" required placeholder="Please provide a valid reason..."></textarea>
