@@ -41,7 +41,7 @@
 
             {{-- NEW: E-Signature Card --}}
             <div class="card shadow-sm border-primary">
-                <div class="card-header bg-primary text-white fw-bold">
+                <div class="card-header bg-primary text-black fw-bold">
                     <i class="bi bi-pen me-2"></i> My E-Signature
                 </div>
                 <div class="card-body text-center">
@@ -100,12 +100,12 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6 pt-3">
+                            <div class="col-md-5 pt-3">
                                 <label class="small text-muted text-uppercase fw-bold">Office / Department</label>
                                 <div class="fs-5 border-bottom pb-1">{{ $employee->office->name ?? 'Pending Assignment' }}</div>
                             </div>
 
-                            <div class="col-md-6 pt-3">
+                            <div class="col-md-7 pt-3">
                                 <label class="small text-muted text-uppercase fw-bold">Division / Unit</label>
                                 <div class="fs-5 border-bottom pb-1">{{ $employee->division->name ?? 'Pending Assignment' }}</div>
                             </div>
