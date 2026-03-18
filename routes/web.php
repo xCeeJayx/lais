@@ -103,6 +103,8 @@ Route::middleware(['auth'])->group(function () {
 
         // PROFILE
         Route::get('/profile-info', [EmployeeProfileController::class, 'show'])->name('profile.show');
+        // NEW: E-Signature upload route
+        Route::post('/profile-info/signature', [EmployeeProfileController::class, 'updateSignature'])->name('profile.signature.update');
 
         // REPORTS (Employee Specific Only)
         Route::get('/reports', [EmployeeReportController::class, 'index'])->name('reports.index');
