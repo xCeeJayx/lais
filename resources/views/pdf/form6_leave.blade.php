@@ -171,7 +171,7 @@
 
                 // Match based on User ID or Step Order fallback
                 $isChief = ($chiefUser && $approverId == $chiefUser->id) || $approval->step_order == 1;
-                $isArd = ($ardUser && $approverId == $ardUser->id) || $approval->step_order >= 3;
+                $isArd = ($ardUser && $approverId == $ardUser->id) || $approval->step_order >= 5;
 
                 if ($isChief) {
                     $chiefAction = $approval->action;
@@ -238,8 +238,10 @@
                 <div class="input-val">{{ $leave->employee->position_title ?? 'N/A' }}</div>
             </td>
             <td style="width: 20%;">
-                <span class="label">5. SALARY GRADE</span>
-                <div class="input-val">{{ $leave->employee->salary_grade ? 'SG '.$leave->employee->salary_grade : '' }}</div>
+                <span class="label">5. SALARY</span>
+                <div class="input-val">
+                    {{ $leave->getDetail('salary') ? '₱ ' . number_format((float)$leave->getDetail('salary'), 2) : '' }}
+                </div>
             </td>
         </tr>
     </table>
@@ -266,7 +268,7 @@
                 <div class="checkbox-group">
                     <span class="label">Others:</span>
                     <div style="margin-left: 20px;">
-                        <span class="checkbox">{{ $leave->isType('MON') ? '✓' : '' }}</span> <b>Monetization of Leave Credits</b> <br>
+                        <span class="checkbox">{{ $leave->isType('MON') ? '✓' : '' }}</span> <b>Monetization of Leave Credits</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="checkbox">{{ $leave->isType('WL') ? '✓' : '' }}</span> <b>Wellness Leave</b><br>
                         <span class="checkbox">{{ $leave->isType('TL') ? '✓' : '' }}</span> <b>Terminal Leave</b>
                     </div>
                 </div>
@@ -278,8 +280,8 @@
                 <div class="checkbox-group"><span class="checkbox">{{ ($leave->isType('VL') && $leave->getDetail('abroad')) ? '✓' : '' }}</span> Abroad (Specify) <span class="underline" style="width: 80px;">{{ $leave->getDetail('abroad') ? $leave->getDetail('location') : '' }}</span></div>
 
                 <div class="label" style="margin-top: 5px;"><i>In case of Sick Leave:</i></div>
-                <div class="checkbox-group"><span class="checkbox">{{ ($leave->isType('SL') && !$leave->getDetail('no_consultation')) ? '✓' : '' }}</span> In Hospital (Specify Illness) <span class="underline" style="width: 100px;">{{ ($leave->isType('SL') && !$leave->getDetail('no_consultation')) ? $leave->getDetail('reason') : '' }}</span></div>
-                <div class="checkbox-group"><span class="checkbox">{{ ($leave->isType('SL') && $leave->getDetail('no_consultation')) ? '✓' : '' }}</span> Out Patient (Specify Illness) <span class="underline" style="width: 100px;">{{ ($leave->isType('SL') && $leave->getDetail('no_consultation')) ? $leave->getDetail('reason') : '' }}</span></div>
+                <div class="checkbox-group"><span class="checkbox">{{ ($leave->isType('SL') && !$leave->getDetail('sl_patient_type')) ? '✓' : '' }}</span> In Hospital (Specify Illness) <span class="underline" style="width: 100px;">{{ ($leave->isType('SL') && !$leave->getDetail('sl_patient_type')) ? $leave->getDetail('illness') : '' }}</span></div>
+                <div class="checkbox-group"><span class="checkbox">{{ ($leave->isType('SL') && $leave->getDetail('sl_patient_type')) ? '✓' : '' }}</span> Out Patient (Specify Illness) <span class="underline" style="width: 100px;">{{ ($leave->isType('SL') && $leave->getDetail('sl_patient_type')) ? $leave->getDetail('illness') : '' }}</span></div>
 
                 <div class="label" style="margin-top: 5px;"><i>In case of Special Leave Benefits for Women:</i></div>
                 <div class="checkbox-group">-<span class="underline" style="width: 200px;">{{ $leave->isType('WOMEN') ? $leave->getDetail('reason') : '' }}</span></div>
@@ -288,7 +290,11 @@
                 <div class="checkbox-group"><span class="checkbox"></span> Completion of Master's Degree<br><span class="checkbox"></span> BAR/Board Examination Review</div>
 
                 <div class="label" style="margin-top: 5px;"><i>Other purpose:</i><span class="underline" style="width: 100px;"></span></div>
-                <div class="checkbox-group"><span class="checkbox"></span> Monetization of Leave Credits<br><span class="checkbox"></span> Terminal Leave</div>
+                <div class="checkbox-group">
+                    <span class="checkbox">{{ $leave->isType('MON') ? '✓' : '' }}</span> Monetization of Leave Credits<br>
+                    <span class="checkbox">{{ $leave->isType('TL') ? '✓' : '' }}</span> Terminal Leave<br>
+                    <span class="checkbox">{{ $leave->isType('WL') ? '✓' : '' }}</span> Wellness Leave
+                </div>
             </td>
         </tr>
     </table>
@@ -406,11 +412,25 @@
             </td>
         </tr>
         <tr>
-            <td colspan="2" style="text-align: center; padding-top: 30px;">
-                <div style="border-bottom: 1px solid black; width: 40%; margin: 0 auto; font-weight: bold; text-transform: uppercase;">
-                    {{ $ardName }}
-                </div>
-                <span class="label">(Assistant Regional Director for Management Services)</span>
+            <td colspan="2" style="padding: 0;">
+                <table style="width: 100%; border: none; margin: 0;">
+                    <tr>
+                        <td style="width: 30%; border: none;"></td>
+
+                        <td style="width: 40%; text-align: center; border: none; padding-top: 30px;">
+                            <div style="border-bottom: 1px solid black; width: 100%; margin: 0 auto; font-weight: bold; text-transform: uppercase;">
+                                {{ $ardName }}
+                            </div>
+                            <span class="label">(Assistant Regional Director for Management Services)</span>
+                        </td>
+
+                        <td style="width: 30%; text-align: center; border: none; vertical-align: bottom; padding-bottom: 10px; padding-right: 10px; padding-left: 10px;">
+                            <div style="border: 2px dashed red; background-color: #fff0f0; color: #cc0000; padding: 6px; font-weight: bold; font-size: 9px;">
+                                IMPORTANT: PLEASE SUBMIT THIS IMMEDIATELY TO PERSONNEL
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </td>
         </tr>
     </table>

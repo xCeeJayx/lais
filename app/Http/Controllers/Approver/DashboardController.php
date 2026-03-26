@@ -55,7 +55,6 @@ class DashboardController extends Controller
         // ---------------------------------------------------------
         // 2. Calculate PROCESSED (Count your specific actions)
         // ---------------------------------------------------------
-        // CHANGED: Added cancellation actions so they count towards the total
         $processedCount = LeaveApproval::where('approver_user_id', $user->id)
             ->whereIn('action', ['approved', 'disapproved', 'returned', 'Approved Cancellation', 'Rejected Cancellation'])
             ->count();
@@ -71,15 +70,32 @@ class DashboardController extends Controller
         }
 
         // ---------------------------------------------------------
-        // Demographic stats scoped to Approver's Office
+        // Demographic stats scoped to Approver's Office or Division
         // ---------------------------------------------------------
+        $workforceQuery = \App\Models\Employee::where('office_id', $officeId);
+        $scopeName = 'Office Workforce';
+
+        // Check if user has an office-wide approver role
+        $hasOfficeWideRole = $user->hasRole('approver_personnel') ||
+                             $user->hasRole('approver_chief_personnel') ||
+                             $user->hasRole('approver_chief_admin') ||
+                             $user->hasRole('approver_ard_ms');
+
+        // If ONLY a Division Chief, restrict to their specific division
+        if ($user->hasRole('approver_division_chief') && !$hasOfficeWideRole) {
+            $divisionId = $user->employee?->division_id;
+            $workforceQuery->where('division_id', $divisionId);
+            $scopeName = 'Division Workforce';
+        }
+
         $stats = [
             'pending'       => $pendingCount,
             'processed'     => $processedCount,
             'cancellations' => $cancellationCount,
-            'workforce'     => \App\Models\Employee::where('office_id', $officeId)->count(),
-            'male'          => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'M')->count(),
-            'female'        => \App\Models\Employee::where('office_id', $officeId)->where('sex', 'F')->count(),
+            'workforce'     => (clone $workforceQuery)->count(),
+            'male'          => (clone $workforceQuery)->where('sex', 'M')->count(),
+            'female'        => (clone $workforceQuery)->where('sex', 'F')->count(),
+            'scope_name'    => $scopeName,
         ];
 
         // ---------------------------------------------------------
@@ -88,8 +104,8 @@ class DashboardController extends Controller
         $leavesQuery = LeaveApplication::with(['employee.user', 'leaveType'])
             ->where('status', 'approved');
 
-        // Restrict to Own Division if Division Chief
-        if ($user->hasRole('approver_division_chief')) {
+        // Restrict calendar to Own Division if ONLY Division Chief
+        if ($user->hasRole('approver_division_chief') && !$hasOfficeWideRole) {
             $divisionId = $user->employee?->division_id;
             $leavesQuery->whereHas('employee', fn($q) => $q->where('division_id', $divisionId));
         } else {

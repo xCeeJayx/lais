@@ -56,7 +56,16 @@
                 @error('working_days_requested') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
-              <div class="col-md-2">
+              <div class="col-md-3">
+                <label class="form-label">Monthly Salary <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">₱</span>
+                  <input type="number" step="0.01" min="0" class="form-control @error('details.salary') is-invalid @enderror" name="details[salary]" id="salary" value="{{ old('details.salary') }}" placeholder="0.00" required>
+                </div>
+                @error('details.salary') <div class="invalid-feedback">{{ $message }}</div> @enderror
+              </div>
+
+              <div class="col-md-3">
                 <label class="form-label">Commutation</label>
                 <select class="form-select @error('commutation') is-invalid @enderror" name="commutation" id="commutation">
                   <option value="">-- Select --</option>
@@ -64,13 +73,6 @@
                   <option value="not_requested" {{ old('commutation') === 'not_requested' ? 'selected' : '' }}>Not Requested</option>
                 </select>
                 @error('commutation') <div class="invalid-feedback">{{ $message }}</div> @enderror
-              </div>
-
-              <div class="col-md-4">
-                <label class="form-label">Reason / Purpose <span class="text-danger">*</span></label>
-                <textarea class="form-control @error('reason') is-invalid @enderror" name="reason" rows="2" required
-                          placeholder="Write the reason/purpose for this leave...">{{ old('reason') }}</textarea>
-                @error('reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
               {{-- NEW: 30 Calendar Days / Terminal Leave Clearance Alert --}}
@@ -86,39 +88,53 @@
                 </div>
               </div>
 
-              {{-- Required Docs --}}
-              <div class="col-6">
-                <div class="border rounded p-3 bg-light h-100">
-                  <div class="d-flex align-items-center justify-content-between">
-                    <div class="fw-semibold">Required Documents</div>
-                    <span class="badge text-bg-secondary" id="reqDocsStatus">Waiting…</span>
+              <div class="col-md-6">
+                <div class="d-flex flex-column gap-3 h-100">
+
+                  {{-- Reason / Purpose --}}
+                  <div>
+                    <label class="form-label">Reason / Purpose <span class="text-danger">*</span></label>
+                    <textarea class="form-control @error('reason') is-invalid @enderror" name="reason" rows="2" required
+                              placeholder="Write the reason/purpose for this leave...">{{ old('reason') }}</textarea>
+                    @error('reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
                   </div>
-                  <div class="small text-muted mt-1">
-                    This list updates based on leave type + days + your answers.
+
+                  {{-- Required Docs --}}
+                  <div class="border rounded p-3 bg-light flex-grow-1">
+                    <div class="d-flex align-items-center justify-content-between">
+                      <div class="fw-semibold">Required Documents</div>
+                      <span class="badge text-bg-secondary" id="reqDocsStatus">Waiting…</span>
+                    </div>
+                    <div class="small text-muted mt-1">
+                      This list updates based on leave type + days + your answers.
+                    </div>
+                    <ul class="mt-2 mb-0" id="requiredDocsList">
+                      <li class="text-muted">Select leave type to see required documents.</li>
+                    </ul>
                   </div>
-                  <ul class="mt-2 mb-0" id="requiredDocsList">
-                    <li class="text-muted">Select leave type to see required documents.</li>
-                  </ul>
+
                 </div>
               </div>
 
-              {{-- Attachments --}}
-              <div class="card shadow-sm col-6 border-0 p-0">
-                <div class="card-header bg-white border rounded-top">
-                    <div class="fw-semibold">Attachments</div>
-                    <div class="small text-muted">Upload supporting documents (multiple allowed).</div>
-                </div>
-                <div class="card-body border border-top-0 rounded-bottom">
-                    <input type="file" class="form-control @error('attachments') is-invalid @enderror"
-                        name="attachments[]" id="attachments" multiple>
-                    @error('attachments') <div class="invalid-feedback">{{ $message }}</div> @enderror
+              {{-- Attachments (Right Column) --}}
+              <div class="col-md-6">
+                <div class="card shadow-sm border-0 p-0 h-100">
+                  <div class="card-header bg-white border rounded-top">
+                      <div class="fw-semibold">Attachments</div>
+                      <div class="small text-muted">Upload supporting documents (multiple allowed).</div>
+                  </div>
+                  <div class="card-body border border-top-0 rounded-bottom">
+                      <input type="file" class="form-control @error('attachments') is-invalid @enderror"
+                          name="attachments[]" id="attachments" multiple>
+                      @error('attachments') <div class="invalid-feedback">{{ $message }}</div> @enderror
 
-                    <div class="form-text">Max 5MB per file.</div>
+                      <div class="form-text">Max 5MB per file.</div>
 
-                    <div class="mt-3">
-                    <div class="fw-semibold small mb-1">Selected files</div>
-                    <ul class="mb-0 small" id="fileList"><li class="text-muted">No files selected.</li></ul>
-                    </div>
+                      <div class="mt-3">
+                      <div class="fw-semibold small mb-1">Selected files</div>
+                      <ul class="mb-0 small" id="fileList"><li class="text-muted">No files selected.</li></ul>
+                      </div>
+                  </div>
                 </div>
               </div>
 

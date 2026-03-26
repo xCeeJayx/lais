@@ -16,9 +16,9 @@
     </div>
 
     <div class="row g-4">
-        {{-- Card 1: Account Information & Signature --}}
+        {{-- Card 1: Account Information --}}
         <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
+            <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-person-circle me-2"></i> Account Details
                 </div>
@@ -36,38 +36,6 @@
                             User ID: {{ $user->id }}
                         </span>
                     </div>
-                </div>
-            </div>
-
-            {{-- NEW: E-Signature Card --}}
-            <div class="card shadow-sm border-primary">
-                <div class="card-header bg-primary text-black fw-bold">
-                    <i class="bi bi-pen me-2"></i> My E-Signature
-                </div>
-                <div class="card-body text-center">
-                    @if($user->signature_path)
-                        <div class="mb-3 border p-2 bg-light rounded">
-                            <img src="{{ asset('storage/' . $user->signature_path) }}" alt="E-Signature" class="img-fluid" style="max-height: 100px;">
-                        </div>
-                        <p class="small text-success fw-bold"><i class="bi bi-check-circle me-1"></i> Signature uploaded</p>
-                    @else
-                        <div class="alert alert-warning small mb-3">
-                            No e-signature found. Please upload one.
-                        </div>
-                    @endif
-
-                    <form action="{{ route('employee.profile.signature.update') }}" method="POST" enctype="multipart/form-data">
-                        @csrf
-                        <div class="mb-3 text-start">
-                            <label for="signature" class="form-label small fw-bold">Upload New Signature</label>
-                            <input class="form-control form-control-sm @error('signature') is-invalid @enderror" type="file" id="signature" name="signature" accept=".png,.jpg,.jpeg" required>
-                            @error('signature')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                            <div class="form-text" style="font-size: 0.7rem;">Clear background PNG recommended. Max 2MB.</div>
-                        </div>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">Save Signature</button>
-                    </form>
                 </div>
             </div>
         </div>

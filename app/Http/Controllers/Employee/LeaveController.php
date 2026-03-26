@@ -154,8 +154,17 @@ class LeaveController extends Controller
             }
         }
 
+        if ($leaveType->code === 'WL') {
+            $requiredFilingDate = now()->addDays(5)->startOfDay();
+            if ($start->lessThan($requiredFilingDate)) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['dates' => 'Wellness Leave requires at least 5 days advance notice.']);
+            }
+        }
+
         if ($leaveType->code === 'SL') {
-            if ($start->isFuture() && !$request->hasFile('attachments')) {
+            if ($validated['working_days_requested'] > 5 && !$request->hasFile('attachments')) {
                 return back()
                     ->withInput()
                     ->withErrors(['attachments' => 'Sick Leave filed in advance requires supporting document (e.g., medical certificate).']);

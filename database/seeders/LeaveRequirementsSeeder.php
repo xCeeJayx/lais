@@ -37,14 +37,9 @@ class LeaveRequirementsSeeder extends Seeder
             LeaveRequiredDocument::updateOrCreate(
                 ['leave_type_id' => $sl->id, 'key' => 'medical_cert'],
                 [
-                    'name' => 'Medical Certificate (if filed in advance OR sick leave > 5 days)',
+                    'name' => 'Medical Certificate (if sick leave > 5 days)',
                     'is_required' => true,
-                    'rule_json' => [
-                        'any' => [
-                            ['days_gt' => 5],
-                            ['field' => 'filed_in_advance', 'equals' => true],
-                        ],
-                    ],
+                    'rule_json' => ['days_gt' => 5],
                 ]
             );
 

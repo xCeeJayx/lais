@@ -24,7 +24,7 @@ class ReportController extends Controller
         $user = $request->user()->loadMissing('employee');
         [$from, $to] = $this->monthRange($request);
 
-        // CHANGED: Added 'Approved Cancellation' and 'Rejected Cancellation' to the default list
+        // 'Approved Cancellation' and 'Rejected Cancellation' to the default list
         $actions = (array) $request->input('action', [
             'approved', 'disapproved', 'returned', 'Approved Cancellation', 'Rejected Cancellation'
         ]);
